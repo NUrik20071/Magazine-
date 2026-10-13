@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Product Store"
+description = "An online product storefront with a browsable catalog, cart, and a protected administrator area for managing products. Administrator access is restricted to approved identities."
+version = "1.0.0"
+id = "artifacts/product-store"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18745
+
+[services.development]
+run = "pnpm --filter @workspace/product-store run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/product-store", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/product-store/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18745"
+BASE_PATH = "/"

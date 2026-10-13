@@ -1,0 +1,354 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: products
+    description: Public product catalog
+  - name: admin
+    description: Protected product management
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /products:
+    get:
+      operationId: listProducts
+      tags: [products]
+      summary: List active products
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: featured
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Active products matching the filters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+  /products/{id}:
+    get:
+      operationId: getProduct
+      tags: [products]
+      summary: Get a product by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          description: Product not found
+  /store/summary:
+    get:
+      operationId: getStoreSummary
+      tags: [products]
+      summary: Get public store summary
+      responses:
+        "200":
+          description: Active catalog summary and featured products
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StoreSummary"
+  /admin/overview:
+    get:
+      operationId: getAdminOverview
+      tags: [admin]
+      summary: Get protected catalog overview
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: Product totals for the admin dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminOverview"
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+  /admin/products:
+    get:
+      operationId: listAdminProducts
+      tags: [admin]
+      summary: List all products, including inactive products
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: All products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+    post:
+      operationId: createProduct
+      tags: [admin]
+      summary: Create a product
+      security:
+        - clerkSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "201":
+          description: Created product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          description: Invalid product data
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+  /admin/products/{id}:
+    patch:
+      operationId: updateProduct
+      tags: [admin]
+      summary: Update a product
+      security:
+        - clerkSession: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductUpdate"
+      responses:
+        "200":
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          description: Invalid product data
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+        "404":
+          description: Product not found
+    delete:
+      operationId: deleteProduct
+      tags: [admin]
+      summary: Delete a product
+      security:
+        - clerkSession: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Product deleted
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+        "404":
+          description: Product not found
+components:
+  securitySchemes:
+    clerkSession:
+      type: apiKey
+      in: cookie
+      name: __session
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    Product:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - category
+        - description
+        - price
+        - imageUrl
+        - badge
+        - isFeatured
+        - isActive
+        - createdAt
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+        price:
+          type: integer
+          minimum: 0
+        imageUrl:
+          type: string
+        badge:
+          type: ["string", "null"]
+        isFeatured:
+          type: boolean
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    ProductInput:
+      type: object
+      required:
+        - name
+        - slug
+        - category
+        - description
+        - price
+        - imageUrl
+      properties:
+        name:
+          type: string
+          minLength: 1
+        slug:
+          type: string
+          minLength: 1
+        category:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        price:
+          type: integer
+          minimum: 0
+        imageUrl:
+          type: string
+        badge:
+          type: ["string", "null"]
+        isFeatured:
+          type: boolean
+        isActive:
+          type: boolean
+    ProductUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        slug:
+          type: string
+          minLength: 1
+        category:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        price:
+          type: integer
+          minimum: 0
+        imageUrl:
+          type: string
+        badge:
+          type: ["string", "null"]
+        isFeatured:
+          type: boolean
+        isActive:
+          type: boolean
+    StoreSummary:
+      type: object
+      required:
+        - productCount
+        - categoryCount
+        - categoryNames
+        - featuredProducts
+      properties:
+        productCount:
+          type: integer
+        categoryCount:
+          type: integer
+        categoryNames:
+          type: array
+          items:
+            type: string
+        featuredProducts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+    AdminOverview:
+      type: object
+      required:
+        - totalProducts
+        - activeProducts
+        - inactiveProducts
+        - categoryCount
+      properties:
+        totalProducts:
+          type: integer
+        activeProducts:
+          type: integer
+        inactiveProducts:
+          type: integer
+        categoryCount:
+          type: integer
+
