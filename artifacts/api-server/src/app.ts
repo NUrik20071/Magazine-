@@ -53,7 +53,10 @@ app.use("/api", router);
 // Serve the built React app from the same origin as the API in production.
 // This keeps /api requests same-origin and enables client-side routes on refresh.
 if (process.env.NODE_ENV === "production") {
-  const webRoot = path.resolve(process.cwd(), "artifacts/product-store/dist/public");
+  const webRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../product-store/dist/public",
+);
   app.use(express.static(webRoot, { index: false, maxAge: "1h" }));
   app.get(/^(?!\/api(?:\/|$)|\/api\/__clerk(?:\/|$)).*/, (_req, res, next) => {
     res.sendFile(path.join(webRoot, "index.html"), (error) => {
