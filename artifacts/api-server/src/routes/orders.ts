@@ -134,7 +134,8 @@ router.patch("/admin/orders/:id", requireAdmin, async (req, res): Promise<void> 
     const current = await pool.query("SELECT items FROM store_orders WHERE id = $1", [id]);
     if (!current.rows[0]) { res.status(404).json({ error: "Заказ не найден." }); return; }
     const originalItems = Array.isArray(current.rows[0].items) ? current.rows[0].items : [];
-    const byProduct = new Map<number, any>(originalItems.map((item: any) => [Number(item.productId), item]));
+    const byProduct = new Map<number, any>();
+    for (const item of originalItems) byProduct.set(Number(item.productId), item);
     const seen = new Set<number>();
     const nextItems: any[] = [];
     for (const item of items) {
