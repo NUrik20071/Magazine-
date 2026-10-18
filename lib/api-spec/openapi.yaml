@@ -271,15 +271,15 @@ components:
         name:
           type: string
           minLength: 1
-          pattern: '.*\\S.*'
+          pattern: '.*\S.*'
         slug:
           type: string
           minLength: 1
-          pattern: '.*\\S.*'
+          pattern: '.*\S.*'
         category:
           type: string
           minLength: 1
-          pattern: '.*\\S.*'
+          pattern: '.*\S.*'
         description:
           type: string
         price:
@@ -299,15 +299,15 @@ components:
         name:
           type: string
           minLength: 1
-          pattern: '.*\\S.*'
+          pattern: '.*\S.*'
         slug:
           type: string
           minLength: 1
-          pattern: '.*\\S.*'
+          pattern: '.*\S.*'
         category:
           type: string
           minLength: 1
-          pattern: '.*\\S.*'
+          pattern: '.*\S.*'
         description:
           type: string
         price:
