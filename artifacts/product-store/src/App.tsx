@@ -421,7 +421,8 @@ function Catalog() {
       </section>
     </main>
     <footer className="footer"><Link href="/" className="brand">тихо.<small>дом и повседневность</small></Link><div className="footer-note">Алматы · Казахстан<br />Корзина хранится на устройстве</div><span className="mono" style={{ fontSize: 9 }}>© {new Date().getFullYear()} ТИХО</span></footer>
-    {selectedProduct && <ProductDetailModal product={selectedProduct} onClose={closeProduct} onAdd={addProduct} />}\n    {cartOpen && <CartDrawer items={cart} onClose={() => setCartOpen(false)} onQty={changeQty} onRemove={removeItem} onOrderSubmitted={() => setCart([])} />}
+    {selectedProduct && <ProductDetailModal product={selectedProduct} onClose={closeProduct} onAdd={addProduct} />}
+    {cartOpen && <CartDrawer items={cart} onClose={() => setCartOpen(false)} onQty={changeQty} onRemove={removeItem} onOrderSubmitted={() => setCart([])} />}
   </div>;
 }
 
