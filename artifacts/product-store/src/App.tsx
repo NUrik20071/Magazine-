@@ -261,6 +261,38 @@ function CartDrawer({ items, onClose, onQty, onRemove, onOrderSubmitted }: {
   </div>;
 }
 
+
+type StorefrontBlock = { id: string; type: 'text' | 'image' | 'video' | 'audio' | 'button' | 'embed'; title?: string; text?: string; label?: string; url?: string; mediaUrl?: string; background?: string; color?: string; width?: string; animation?: string };
+type StorefrontConfig = { theme: { background: string; text: string; accent: string; accentText: string; cardBackground: string; gradient: string; font: string; headingFont: string; cardRadius: number; cardColumns: number; imageRatio: string; animation: string; animationDuration: number; colorAnimation: boolean }; content: { announcement: string; heroEyebrow: string; heroTitle: string; heroText: string; heroImage: string; heroImageLink: string; heroButtonText: string; storyTitle: string; storyText: string }; blocks: StorefrontBlock[] };
+const defaultStorefront: StorefrontConfig = {
+  theme: { background: '#f5f1e8', text: '#244c43', accent: '#244c43', accentText: '#fffaf1', cardBackground: '#fffdf7', gradient: 'linear-gradient(135deg, #f5f1e8 0%, #e5ded0 100%)', font: 'DM Sans', headingFont: 'Cormorant Garamond', cardRadius: 8, cardColumns: 3, imageRatio: '4 / 5', animation: 'lift', animationDuration: 240, colorAnimation: false },
+  content: { announcement: 'Доставка по Казахстану · бесплатно от 35 000 ₸', heroEyebrow: 'Маленькая коллекция для дома', heroTitle: 'Жить\nчуть тише.', heroText: 'Вещи, которые не требуют внимания — только становятся частью хорошего дня. Собираем их небольшими партиями.', heroImage: '/images/orbit-vase.png', heroImageLink: '', heroButtonText: 'Смотреть коллекцию', storyTitle: 'Не больше.\nЛучше.', storyText: '«Тихо» — маленький магазин вещей, которые приятно держать рядом.' },
+  blocks: [],
+};
+function StorefrontBlocks({ blocks }: { blocks: StorefrontBlock[] }) {
+  if (!blocks.length) return null;
+  return <section className="custom-blocks">{blocks.map((block) => {
+    const style: any = { background: block.background || 'transparent', color: block.color || 'inherit', width: block.width || '100%' };
+    let content: ReactNode;
+    if (block.type === 'text') content = <div className="custom-block-copy"><h2>{block.title}</h2><p>{block.text}</p></div>;
+    else if (block.type === 'image') content = <img className="custom-block-media" src={block.mediaUrl} alt={block.title || ''} />;
+    else if (block.type === 'video') content = <video className="custom-block-media" src={block.mediaUrl} controls playsInline />;
+    else if (block.type === 'audio') content = <audio src={block.mediaUrl} controls />;
+    else if (block.type === 'embed') content = <iframe className="custom-block-embed" src={block.mediaUrl} title={block.title || 'Встроенный контент'} loading="lazy" allowFullScreen />;
+    else content = <span>{block.label || block.title || 'Открыть'} <ExternalLink size={14} /></span>;
+    return <div className={'custom-block custom-block-' + block.type} key={block.id} style={style}>{block.url ? <a href={block.url} target={/^https?:/.test(block.url) ? '_blank' : undefined} rel="noreferrer">{content}</a> : content}</div>;
+  })}</section>;
+}
+function ProductDetailModal({ product, onClose, onAdd }: { product: Product; onClose: () => void; onAdd: (product: Product) => void }) {
+  return <div className="product-detail-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <section className="product-detail" role="dialog" aria-modal="true" aria-label={product.name}>
+      <button className="product-detail-close" onClick={onClose} aria-label="Закрыть карточку"><X /></button>
+      <div className="product-detail-gallery"><div className="product-detail-thumbs"><button className="active"><img src={product.imageUrl || '/images/orbit-vase.png'} alt="" /></button></div><div className="product-detail-main-image"><img src={product.imageUrl || '/images/orbit-vase.png'} alt={product.name} /></div></div>
+      <div className="product-detail-info"><span className="eyebrow">{product.category}</span><h1>{product.name}</h1><div className="product-detail-price">{money(product.price)}</div>{product.badge && <span className="badge detail-badge">{product.badge}</span>}<p>{product.description || 'Подробности о товаре уточняйте у продавца.'}</p><div className="product-detail-benefits"><span>✓ Ручной отбор предметов</span><span>✓ Доставка по Казахстану</span><span>✓ Заказ подтверждается вручную</span></div><button className="primary-button product-detail-add" onClick={() => { onAdd(product); onClose(); }}><ShoppingBag size={17} /> Добавить в корзину</button><button className="secondary-button product-detail-back" onClick={onClose}>Вернуться в каталог</button></div>
+    </section>
+  </div>;
+}
+
 function Catalog() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
