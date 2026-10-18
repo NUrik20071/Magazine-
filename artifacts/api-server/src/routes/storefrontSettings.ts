@@ -12,13 +12,11 @@ const defaults = {
     imageRatio: "4 / 5", animation: "lift", animationDuration: 240, colorAnimation: false,
   },
   content: {
-    announcement: "Доставка по Казахстану · бесплатно от 35 000 ₸",
-    heroEyebrow: "Маленькая коллекция для дома", heroTitle: "Жить\nчуть тише.",
-    heroText: "Вещи, которые не требуют внимания — только становятся частью хорошего дня. Собираем их небольшими партиями.",
-    heroImage: "/images/orbit-vase.png", heroImageLink: "", heroButtonText: "Смотреть коллекцию",
-    storyTitle: "Не больше.\nЛучше.", storyText: "«Тихо» — маленький магазин вещей, которые приятно держать рядом.",
+    siteName: 'тихо.', siteTagline: 'дом и повседневность', navCatalogLabel: 'Каталог', navAboutLabel: 'О нас', cartLabel: 'Корзина', signInLabel: 'Войти',
+    announcement: 'Доставка по Казахстану · бесплатно от 35 000 ₸', heroEyebrow: 'Маленькая коллекция для дома', heroTitle: 'Жить\nчуть тише.', heroText: 'Вещи, которые не требуют внимания — только становятся частью хорошего дня. Собираем их небольшими партиями.', heroImage: '/images/orbit-vase.png', heroImageLink: '', heroButtonText: 'Смотреть коллекцию', heroButtonUrl: '#catalog', heroIndexText: 'ПРЕДМЕТЫ С ХАРАКТЕРОМ · № 01', heroNote: 'Найдено и выбрано в Казахстане', ticker1: 'С любовью к деталям', ticker2: 'Небольшие тиражи', ticker3: 'Сделано на каждый день', catalogEyebrow: 'Наш выбор', catalogTitle: 'Предметы\nна каждый день', searchPlaceholder: 'Найти вещь', storyEyebrow: 'Небольшое объяснение', storyTitle: 'Не больше.\nЛучше.', storyText: '«Тихо» — маленький магазин вещей, которые приятно держать рядом.', storyQuote: '«Хорошая вещь не заполняет пространство — она делает его вашим»', storyLinkText: 'Вернуться к вещам', storyLinkUrl: '#catalog', footerLocation: 'Алматы · Казахстан', footerNote: 'Корзина хранится на устройстве', copyrightLabel: 'ТИХО',
   },
   blocks: [] as Array<Record<string, unknown>>,
+  workflows: [] as Array<Record<string, unknown>>,
 };
 
 async function ensureSettingsTable() {
@@ -52,10 +50,24 @@ function validConfig(value: unknown): value is Record<string, any> {
   if (!config.theme || typeof config.theme !== "object" || !config.content || typeof config.content !== "object" || !Array.isArray(config.blocks)) return false;
   if (config.content.heroImageLink !== undefined && !validUrl(config.content.heroImageLink)) return false;
   if (config.content.heroImage !== undefined && !validUrl(config.content.heroImage)) return false;
-  if (config.blocks.length > 40) return false;
+  for (const key of ["heroButtonUrl", "storyLinkUrl"]) if (config.content[key] !== undefined && !validUrl(config.content[key])) return false;
+  for (const key of Object.keys(config.content)) if (typeof config.content[key] !== "string" || config.content[key].length > 4000) return false;
+  if (config.blocks.length > 40 || !Array.isArray(config.workflows) || config.workflows.length > 50) return false;
   if (config.theme.heroLayout !== undefined && !["split", "image-left", "centered"].includes(config.theme.heroLayout)) return false;
   const allowedTypes = new Set(["text", "image", "video", "audio", "button", "embed"]);
   const allowedAnimations = new Set(["fade", "lift", "glow", "float", "none"]);
+  const allowedTriggers = new Set(["page-load", "click", "swipe-left", "swipe-right"]);
+  const allowedConditions = new Set(["always", "mobile", "desktop", "cart-has-items", "url-contains"]);
+  const allowedActions = new Set(["show", "hide", "toggle", "animate", "scroll", "navigate", "open-link", "play-video", "show-message"]);
+  for (const rule of config.workflows) {
+    if (!rule || typeof rule !== "object" || typeof rule.id !== "string" || rule.id.length > 80) return false;
+    if (typeof rule.name !== "string" || rule.name.length > 200 || typeof rule.enabled !== "boolean") return false;
+    if (!allowedTriggers.has(rule.trigger) || !allowedConditions.has(rule.condition) || !allowedActions.has(rule.action)) return false;
+    if (typeof rule.listenOn !== "string" || rule.listenOn.length > 100 || (rule.targetId !== undefined && (typeof rule.targetId !== "string" || rule.targetId.length > 100))) return false;
+    if (rule.conditionValue !== undefined && (typeof rule.conditionValue !== "string" || rule.conditionValue.length > 1000)) return false;
+    if (rule.value !== undefined && (typeof rule.value !== "string" || rule.value.length > 2000)) return false;
+    if (["navigate", "open-link"].includes(rule.action) && rule.value && !validUrl(rule.value)) return false;
+  }
   for (const block of config.blocks) {
     if (!block || typeof block !== "object" || !allowedTypes.has(block.type)) return false;
     if (typeof block.id !== "string" || block.id.length > 80) return false;

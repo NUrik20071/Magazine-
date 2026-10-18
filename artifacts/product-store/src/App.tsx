@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type MouseEvent, type TouchEvent } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from '@clerk/react';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
@@ -145,7 +145,7 @@ function AdminHeaderLink() {
   return <Link className="quiet-link" href="/admin" data-testid="link-admin-panel">Панель управления</Link>;
 }
 
-function ShopHeader({ count, onCart, announcement }: { count: number; onCart: () => void; announcement: string }) {
+function ShopHeader({ count, onCart, announcement, content }: { count: number; onCart: () => void; announcement: string; content: StorefrontConfig['content'] }) {
   const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
   const { signOut } = useClerk();
@@ -164,10 +164,10 @@ function ShopHeader({ count, onCart, announcement }: { count: number; onCart: ()
   return <>
     <div className="announcement">{announcement}</div>
     <header className="header">
-      <Link href="/" className="brand" data-testid="link-home">тихо.<small>дом и повседневность</small></Link>
+      <Link href="/" className="brand" data-testid="link-home" data-element-id="home-brand">{content.siteName || "тихо."}<small>{content.siteTagline || "дом и повседневность"}</small></Link>
       <nav className="header-links" aria-label="Главная навигация">
-        <a className="quiet-link" href="#catalog">Каталог</a>
-        <a className="quiet-link" href="#about">О нас</a>
+        <a className="quiet-link" href="#catalog" data-element-id="nav-catalog">{content.navCatalogLabel || "Каталог"}</a>
+        <a className="quiet-link" href="#about" data-element-id="nav-about">{content.navAboutLabel || "О нас"}</a>
         <AdminHeaderLink />
         {!isLoaded ? <span className="account-loading" role="status">Проверяем аккаунт…</span> : isSignedIn && user ? <>
           <div className="account-profile" data-testid="account-profile" title={user.primaryEmailAddress?.emailAddress || displayName}>
@@ -177,9 +177,9 @@ function ShopHeader({ count, onCart, announcement }: { count: number; onCart: ()
           <button className="account-logout" onClick={() => void handleSignOut()} disabled={signingOut} data-testid="button-sign-out">
             <LogOut size={15} /><span>{signingOut ? 'Выходим…' : 'Выйти'}</span>
           </button>
-        </> : <Link className="quiet-link" href="/sign-in" data-testid="link-sign-in">Войти</Link>}
-        <button className="icon-button" onClick={onCart} data-testid="button-open-cart" aria-label="Открыть корзину">
-          <ShoppingBag size={18} strokeWidth={1.5} /><span>Корзина</span><span className="cart-count" data-testid="text-cart-count">{count}</span>
+        </> : <Link className="quiet-link" href="/sign-in" data-testid="link-sign-in">{content.signInLabel || "Войти"}</Link>}
+        <button className="icon-button" onClick={onCart} data-testid="button-open-cart" data-element-id="cart-toggle" aria-label="Открыть корзину">
+          <ShoppingBag size={18} strokeWidth={1.5} /><span>{content.cartLabel || "Корзина"}</span><span className="cart-count" data-testid="text-cart-count">{count}</span>
         </button>
       </nav>
     </header>
@@ -187,7 +187,7 @@ function ShopHeader({ count, onCart, announcement }: { count: number; onCart: ()
 }
 
 function ProductCard({ product, index, onAdd, onOpen }: { product: Product; index: number; onAdd: (product: Product) => void; onOpen: (product: Product) => void }) {
-  return <article className="product-card" data-testid={`card-product-${product.id}`} onClick={() => onOpen(product)} tabIndex={0} role="button" onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(product); } }} aria-label={`Открыть товар ${product.name}`}>
+  return <article className="product-card" data-element-id="product-card" data-testid={`card-product-${product.id}`} onClick={() => onOpen(product)} tabIndex={0} role="button" onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(product); } }} aria-label={`Открыть товар ${product.name}`}>
     <div className="product-photo">
       <img src={productImage(product, index)} alt={product.name} loading="lazy" data-testid={`img-product-${product.id}`} />
       {product.badge && <span className="badge">{product.badge}</span>}
@@ -227,7 +227,7 @@ function CartDrawer({ items, onClose, onQty, onRemove, onOrderSubmitted }: {
     } catch (error) { setOrderError(error instanceof Error ? error.message : 'Ошибка отправки. Попробуйте ещё раз.'); }
     finally { setSending(false); }
   }
-  return <div className="drawer-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <div className="drawer-backdrop" data-element-id="cart-panel" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <aside className="cart-drawer" role="dialog" aria-modal="true" aria-label="Корзина">
       <div className="drawer-head"><h2>Ваша корзина</h2><button className="plain-icon" onClick={onClose} aria-label="Закрыть корзину" data-testid="button-close-cart"><X /></button></div>
       {orderSuccess && <div className="order-success" role="status"><Check size={18} />{orderSuccess}</div>}
@@ -263,11 +263,15 @@ function CartDrawer({ items, onClose, onQty, onRemove, onOrderSubmitted }: {
 
 
 type StorefrontBlock = { id: string; type: 'text' | 'image' | 'video' | 'audio' | 'button' | 'embed'; title?: string; text?: string; label?: string; url?: string; mediaUrl?: string; background?: string; color?: string; width?: string; columns?: number; height?: string; fontSize?: string; titleSize?: string; padding?: string; radius?: number; textAlign?: 'left' | 'center' | 'right'; objectFit?: 'cover' | 'contain'; targetBlank?: boolean; animation?: string };
-type StorefrontConfig = { theme: { background: string; text: string; accent: string; accentText: string; cardBackground: string; gradient: string; heroLayout: string; font: string; headingFont: string; cardRadius: number; cardColumns: number; imageRatio: string; animation: string; animationDuration: number; colorAnimation: boolean }; content: { announcement: string; heroEyebrow: string; heroTitle: string; heroText: string; heroImage: string; heroImageLink: string; heroButtonText: string; storyTitle: string; storyText: string }; blocks: StorefrontBlock[] };
+type WorkflowTrigger = 'page-load' | 'click' | 'swipe-left' | 'swipe-right';
+type WorkflowCondition = 'always' | 'mobile' | 'desktop' | 'cart-has-items' | 'url-contains';
+type WorkflowAction = 'show' | 'hide' | 'toggle' | 'animate' | 'scroll' | 'navigate' | 'open-link' | 'play-video' | 'show-message';
+type WorkflowRule = { id: string; name: string; enabled: boolean; trigger: WorkflowTrigger; listenOn: string; condition: WorkflowCondition; conditionValue?: string; action: WorkflowAction; targetId?: string; value?: string };
+type StorefrontConfig = { theme: { background: string; text: string; accent: string; accentText: string; cardBackground: string; gradient: string; heroLayout: string; font: string; headingFont: string; cardRadius: number; cardColumns: number; imageRatio: string; animation: string; animationDuration: number; colorAnimation: boolean }; content: { siteName: string; siteTagline: string; navCatalogLabel: string; navAboutLabel: string; cartLabel: string; signInLabel: string; announcement: string; heroEyebrow: string; heroTitle: string; heroText: string; heroImage: string; heroImageLink: string; heroButtonText: string; heroButtonUrl: string; heroIndexText: string; heroNote: string; ticker1: string; ticker2: string; ticker3: string; catalogEyebrow: string; catalogTitle: string; searchPlaceholder: string; storyEyebrow: string; storyTitle: string; storyText: string; storyQuote: string; storyLinkText: string; storyLinkUrl: string; footerLocation: string; footerNote: string; copyrightLabel: string }; blocks: StorefrontBlock[]; workflows: WorkflowRule[] };
 const defaultStorefront: StorefrontConfig = {
   theme: { background: '#f5f1e8', text: '#244c43', accent: '#244c43', accentText: '#fffaf1', cardBackground: '#fffdf7', gradient: 'linear-gradient(135deg, #f5f1e8 0%, #e5ded0 100%)', font: 'DM Sans', headingFont: 'Cormorant Garamond', cardRadius: 8, cardColumns: 3, imageRatio: '4 / 5', animation: 'lift', animationDuration: 240, colorAnimation: false, heroLayout: 'split' },
-  content: { announcement: 'Доставка по Казахстану · бесплатно от 35 000 ₸', heroEyebrow: 'Маленькая коллекция для дома', heroTitle: 'Жить\nчуть тише.', heroText: 'Вещи, которые не требуют внимания — только становятся частью хорошего дня. Собираем их небольшими партиями.', heroImage: '/images/orbit-vase.png', heroImageLink: '', heroButtonText: 'Смотреть коллекцию', storyTitle: 'Не больше.\nЛучше.', storyText: '«Тихо» — маленький магазин вещей, которые приятно держать рядом.' },
-  blocks: [],
+  content: { siteName: 'тихо.', siteTagline: 'дом и повседневность', navCatalogLabel: 'Каталог', navAboutLabel: 'О нас', cartLabel: 'Корзина', signInLabel: 'Войти', announcement: 'Доставка по Казахстану · бесплатно от 35 000 ₸', heroEyebrow: 'Маленькая коллекция для дома', heroTitle: 'Жить\nчуть тише.', heroText: 'Вещи, которые не требуют внимания — только становятся частью хорошего дня. Собираем их небольшими партиями.', heroImage: '/images/orbit-vase.png', heroImageLink: '', heroButtonText: 'Смотреть коллекцию', heroButtonUrl: '#catalog', heroIndexText: 'ПРЕДМЕТЫ С ХАРАКТЕРОМ · № 01', heroNote: 'Найдено и выбрано в Казахстане', ticker1: 'С любовью к деталям', ticker2: 'Небольшие тиражи', ticker3: 'Сделано на каждый день', catalogEyebrow: 'Наш выбор', catalogTitle: 'Предметы\nна каждый день', searchPlaceholder: 'Найти вещь', storyEyebrow: 'Небольшое объяснение', storyTitle: 'Не больше.\nЛучше.', storyText: '«Тихо» — маленький магазин вещей, которые приятно держать рядом.', storyQuote: '«Хорошая вещь не заполняет пространство — она делает его вашим»', storyLinkText: 'Вернуться к вещам', storyLinkUrl: '#catalog', footerLocation: 'Алматы · Казахстан', footerNote: 'Корзина хранится на устройстве', copyrightLabel: 'ТИХО' },
+  blocks: [], workflows: [],
 };
 function StorefrontBlocks({ blocks }: { blocks: StorefrontBlock[] }) {
   if (!blocks.length) return null;
@@ -293,7 +297,7 @@ function StorefrontBlocks({ blocks }: { blocks: StorefrontBlock[] }) {
     else if (block.type === 'embed') content = <iframe className="custom-block-embed" src={block.mediaUrl} title={block.title || 'Встроенный контент'} loading="lazy" allowFullScreen />;
     else content = <span>{block.label || block.title || 'Открыть'} <ExternalLink size={14} /></span>;
     const externalLink = /^https?:/.test(block.url || '');
-    return <div className={'custom-block custom-block-' + block.type} key={block.id} data-animation={block.animation || 'fade'} data-gradient={/gradient\s*\(/i.test(block.background || '') ? 'true' : 'false'} style={style}>
+    return <div className={'custom-block custom-block-' + block.type} key={block.id} data-element-id={block.id} data-block-id={block.id} data-animation={block.animation || 'fade'} data-gradient={/gradient\s*\(/i.test(block.background || '') ? 'true' : 'false'} style={style}>
       {block.url ? <a href={block.url} target={block.targetBlank || externalLink ? '_blank' : undefined} rel={block.targetBlank || externalLink ? 'noreferrer' : undefined}>{content}</a> : content}
     </div>;
   })}</section>;
@@ -314,13 +318,72 @@ function Catalog() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [cartOpen, setCartOpen] = useState(false);
+  const [workflowNotice, setWorkflowNotice] = useState('');
+  const [storefrontLoaded, setStorefrontLoaded] = useState(false);
+  const touchStartX = useRef<number | null>(null);
   const [cart, setCart] = useState<CartItem[]>(() => {
     try { return restoreCart(localStorage.getItem('tihoshop-cart')); } catch { return []; }
   });
   const listParams = useMemo(() => ({ ...(search.trim() ? { search: search.trim() } : {}), ...(category ? { category } : {}) }), [search, category]);
   const productsQuery = useListProducts(listParams);
-  useEffect(() => { fetch('/api/storefront/settings').then((r) => r.ok ? r.json() : null).then((config) => { if (config && config.theme && config.content && Array.isArray(config.blocks)) setStorefront({ ...defaultStorefront, ...config, theme: { ...defaultStorefront.theme, ...config.theme }, content: { ...defaultStorefront.content, ...config.content } }); }).catch(() => undefined); }, []);
+  useEffect(() => { fetch('/api/storefront/settings').then((r) => r.ok ? r.json() : null).then((config) => { if (config && config.theme && config.content && Array.isArray(config.blocks)) setStorefront({ ...defaultStorefront, ...config, theme: { ...defaultStorefront.theme, ...config.theme }, content: { ...defaultStorefront.content, ...config.content }, blocks: Array.isArray(config.blocks) ? config.blocks : [], workflows: Array.isArray(config.workflows) ? config.workflows : [] }); }).catch(() => undefined).finally(() => setStorefrontLoaded(true)); }, []);
+  const runWorkflows = (trigger: WorkflowTrigger, sourceId = 'any') => {
+    for (const rule of storefront.workflows || []) {
+      if (!rule.enabled || rule.trigger !== trigger) continue;
+      if (trigger === 'click' && rule.listenOn !== 'any' && rule.listenOn !== sourceId) continue;
+      let conditionPassed = true;
+      if (rule.condition === 'mobile') conditionPassed = window.matchMedia('(max-width: 700px)').matches;
+      if (rule.condition === 'desktop') conditionPassed = !window.matchMedia('(max-width: 700px)').matches;
+      if (rule.condition === 'cart-has-items') conditionPassed = cart.length > 0;
+      if (rule.condition === 'url-contains') conditionPassed = window.location.href.includes(rule.conditionValue || '');
+      if (!conditionPassed) continue;
+      const targets = Array.from(document.querySelectorAll<HTMLElement>('[data-element-id]')).filter((el) => el.dataset.elementId === (rule.targetId || ''));
+      const target = targets[0];
+      const targetList = rule.targetId === 'product-card' ? targets : targets.slice(0, 1);
+      if (rule.action === 'show') targetList.forEach((el) => { el.hidden = false; });
+      else if (rule.action === 'hide') targetList.forEach((el) => { el.hidden = true; });
+      else if (rule.action === 'toggle') targetList.forEach((el) => { el.hidden = !el.hidden; });
+      else if (rule.action === 'animate') targetList.forEach((el) => {
+        el.dataset.workflowAnimation = rule.value || 'pulse';
+        el.classList.remove('workflow-animate');
+        void el.offsetWidth;
+        el.classList.add('workflow-animate');
+      });
+      else if (rule.action === 'scroll' && target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else if (rule.action === 'navigate' && rule.value) window.location.href = rule.value;
+      else if (rule.action === 'open-link' && rule.value) window.open(rule.value, '_blank', 'noopener,noreferrer');
+      else if (rule.action === 'play-video') targetList.forEach((el) => {
+        const video = el.matches('video') ? el as HTMLVideoElement : el.querySelector('video');
+        if (video) void video.play().catch(() => undefined);
+      });
+      else if (rule.action === 'show-message') setWorkflowNotice(rule.value || rule.name || 'Действие выполнено');
+    }
+  };
+  const handleWorkflowClick = (event: MouseEvent<HTMLDivElement>) => {
+    const clicked = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-element-id]');
+    runWorkflows('click', clicked?.dataset.elementId || 'any');
+  };
+  const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    touchStartX.current = event.changedTouches[0]?.clientX ?? null;
+  };
+  const handleTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    if (touchStartX.current === null) return;
+    const delta = (event.changedTouches[0]?.clientX ?? touchStartX.current) - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(delta) >= 55) runWorkflows(delta < 0 ? 'swipe-left' : 'swipe-right');
+  };
+  useEffect(() => {
+    if (!storefrontLoaded) return;
+    const frame = window.requestAnimationFrame(() => runWorkflows('page-load'));
+    return () => window.cancelAnimationFrame(frame);
+  }, [storefrontLoaded]);
+  useEffect(() => {
+    if (!workflowNotice) return;
+    const timer = window.setTimeout(() => setWorkflowNotice(''), 3200);
+    return () => window.clearTimeout(timer);
+  }, [workflowNotice]);
   useEffect(() => { const root = document.documentElement; root.style.setProperty('--site-background', storefront.theme.background); root.style.setProperty('--site-text', storefront.theme.text); root.style.setProperty('--site-accent', storefront.theme.accent); root.style.setProperty('--site-accent-text', storefront.theme.accentText); root.style.setProperty('--site-card-background', storefront.theme.cardBackground); root.style.setProperty('--site-gradient', storefront.theme.gradient); root.style.setProperty('--site-font', '"' + storefront.theme.font + '", sans-serif'); root.style.setProperty('--site-heading-font', '"' + storefront.theme.headingFont + '", serif'); root.style.setProperty('--site-card-radius', storefront.theme.cardRadius + 'px'); root.style.setProperty('--site-card-columns', String(storefront.theme.cardColumns)); root.style.setProperty('--site-image-ratio', storefront.theme.imageRatio); root.style.setProperty('--site-animation-duration', storefront.theme.animationDuration + 'ms'); root.dataset.siteAnimation = storefront.theme.animation; root.dataset.colorAnimation = String(storefront.theme.colorAnimation); root.dataset.siteHeroLayout = storefront.theme.heroLayout || 'split'; }, [storefront]);
+  useEffect(() => { document.title = storefront.content.siteName || 'Магазин'; }, [storefront.content.siteName]);
   const summaryQuery = useGetStoreSummary();
   const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
   useEffect(() => {
@@ -376,29 +439,29 @@ function Catalog() {
   );
   const removeItem = (id: number) => setCart((items) => items.filter((item) => item.product.id !== id));
 
-  return <div className="shop-shell">
-    <ShopHeader count={count} onCart={() => setCartOpen(true)} announcement={storefront.content.announcement} />
+  return <div className="shop-shell" onClickCapture={handleWorkflowClick} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+    <ShopHeader count={count} onCart={() => setCartOpen(true)} announcement={storefront.content.announcement} content={storefront.content} />
     <main>
-      <section className="hero" data-layout={storefront.theme.heroLayout || 'split'}>
+      <section className="hero" data-element-id="hero" data-layout={storefront.theme.heroLayout || 'split'}>
         <div className="hero-copy">
           <span className="eyebrow">{storefront.content.heroEyebrow}</span>
           <h1>{storefront.content.heroTitle.split("\n").map((line, i) => <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>)}</h1>
           <p>{storefront.content.heroText}</p>
-          <a className="cta" href="#catalog" data-testid="link-explore-catalog">{storefront.content.heroButtonText} <ArrowDownRight size={16} /></a>
+          <a className="cta" href={storefront.content.heroButtonUrl || '#catalog'} data-element-id="hero-button" data-testid="link-explore-catalog">{storefront.content.heroButtonText} <ArrowDownRight size={16} /></a>
         </div>
         <div className="hero-art">
-          <span className="hero-index">ПРЕДМЕТЫ С ХАРАКТЕРОМ · № 01</span>
-          <a className="hero-image-link" href={storefront.content.heroImageLink || '#catalog'}><img src={storefront.content.heroImage || featured?.imageUrl || '/images/orbit-vase.png'} alt={featured?.name || 'Керамическая ваза в солнечном свете'} /></a>
-          <span className="hero-note">Найдено и выбрано в Казахстане</span>
+          <span className="hero-index">{storefront.content.heroIndexText}</span>
+          <a className="hero-image-link" data-element-id="hero-image" href={storefront.content.heroImageLink || '#catalog'}><img src={storefront.content.heroImage || featured?.imageUrl || '/images/orbit-vase.png'} alt={featured?.name || 'Керамическая ваза в солнечном свете'} /></a>
+          <span className="hero-note">{storefront.content.heroNote}</span>
         </div>
       </section>
-      <div className="ticker"><span>С любовью к деталям</span><span>•</span><span>Небольшие тиражи</span><span>•</span><span>Сделано на каждый день</span></div>
-      <section className="catalog" id="catalog">
+      <div className="ticker" data-element-id="ticker"><span>{storefront.content.ticker1}</span><span>•</span><span>{storefront.content.ticker2}</span><span>•</span><span>{storefront.content.ticker3}</span></div>
+      <section className="catalog" id="catalog" data-element-id="catalog">
         <div className="section-head">
-          <div><span className="eyebrow">Наш выбор</span><h2>Предметы<br />на каждый день</h2></div>
+          <div><span className="eyebrow">{storefront.content.catalogEyebrow}</span><h2>{storefront.content.catalogTitle.split("\n").map((line, i) => <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>)}</h2></div>
           <div className="catalog-tools">
             <label style={{ position: 'relative' }}><Search size={15} style={{ position: 'absolute', left: 11, top: 11, color: '#829086' }} />
-              <input className="search-field" style={{ paddingLeft: 34 }} placeholder="Найти вещь" value={search} onChange={(event) => setSearch(event.target.value)} data-testid="input-product-search" />
+              <input className="search-field" style={{ paddingLeft: 34 }} placeholder={storefront.content.searchPlaceholder} value={search} onChange={(event) => setSearch(event.target.value)} data-testid="input-product-search" />
             </label>
             <span className="mono" style={{ fontSize: 10, color: '#788176' }}>{products.length.toString().padStart(2, '0')} предмета</span>
           </div>
@@ -413,16 +476,17 @@ function Catalog() {
               <div className="empty-state" data-testid="empty-products">Коллекция пока собирается.<br /><span style={{ fontSize: 13 }}>Загляните чуть позже — здесь появятся новые находки.</span></div>}
       </section>
       <StorefrontBlocks blocks={storefront.blocks} />
-      <section className="story-band" id="about">
+      <section className="story-band" id="about" data-element-id="about">
         <div className="story-inner">
-          <div><span className="eyebrow">Небольшое объяснение</span><h2>{storefront.content.storyTitle.split("\n").map((line, i) => <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>)}</h2><p>{storefront.content.storyText}</p><a className="quiet-link" href="#catalog" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 9, fontSize: 12 }}>Вернуться к вещам <ArrowRight size={14} /></a></div>
-          <div className="story-mark">«Хорошая вещь не заполняет пространство — она делает его вашим»</div>
+          <div><span className="eyebrow">{storefront.content.storyEyebrow}</span><h2>{storefront.content.storyTitle.split("\n").map((line, i) => <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>)}</h2><p>{storefront.content.storyText}</p><a className="quiet-link" href={storefront.content.storyLinkUrl || '#catalog'} data-element-id="story-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 9, fontSize: 12 }}>{storefront.content.storyLinkText} <ArrowRight size={14} /></a></div>
+          <div className="story-mark">{storefront.content.storyQuote}</div>
         </div>
       </section>
     </main>
-    <footer className="footer"><Link href="/" className="brand">тихо.<small>дом и повседневность</small></Link><div className="footer-note">Алматы · Казахстан<br />Корзина хранится на устройстве</div><span className="mono" style={{ fontSize: 9 }}>© {new Date().getFullYear()} ТИХО</span></footer>
+    <footer className="footer" data-element-id="footer"><Link href="/" className="brand" data-element-id="footer-brand">{storefront.content.siteName}<small>{storefront.content.siteTagline}</small></Link><div className="footer-note">{storefront.content.footerLocation}<br />{storefront.content.footerNote}</div><span className="mono" style={{ fontSize: 9 }}>© {new Date().getFullYear()} {storefront.content.copyrightLabel}</span></footer>
     {selectedProduct && <ProductDetailModal product={selectedProduct} onClose={closeProduct} onAdd={addProduct} />}
     {cartOpen && <CartDrawer items={cart} onClose={() => setCartOpen(false)} onQty={changeQty} onRemove={removeItem} onOrderSubmitted={() => setCart([])} />}
+    {workflowNotice && <div className="workflow-toast" role="status">{workflowNotice}</div>}
   </div>;
 }
 
@@ -468,7 +532,7 @@ function StorefrontSettingsEditor() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
-  useEffect(() => { fetch('/api/storefront/settings').then((r) => r.json()).then((data) => setConfig({ ...defaultStorefront, ...data, theme: { ...defaultStorefront.theme, ...(data.theme || {}) }, content: { ...defaultStorefront.content, ...(data.content || {}) }, blocks: Array.isArray(data.blocks) ? data.blocks : [] })).catch(() => setError('Не удалось загрузить настройки')).finally(() => setLoading(false)); }, []);
+  useEffect(() => { fetch('/api/storefront/settings').then((r) => r.json()).then((data) => setConfig({ ...defaultStorefront, ...data, theme: { ...defaultStorefront.theme, ...(data.theme || {}) }, content: { ...defaultStorefront.content, ...(data.content || {}) }, blocks: Array.isArray(data.blocks) ? data.blocks : [], workflows: Array.isArray(data.workflows) ? data.workflows : [] })).catch(() => setError('Не удалось загрузить настройки')).finally(() => setLoading(false)); }, []);
   const updateTheme = (key: keyof StorefrontConfig['theme'], value: string | number | boolean) => setConfig((c) => ({ ...c, theme: { ...c.theme, [key]: value } }));
   const updateContent = (key: keyof StorefrontConfig['content'], value: string) => setConfig((c) => ({ ...c, content: { ...c.content, [key]: value } }));
   const updateBlock = (index: number, key: keyof StorefrontBlock, value: string | number | boolean) => setConfig((c) => ({ ...c, blocks: c.blocks.map((b, i) => i === index ? { ...b, [key]: value } : b) }));
@@ -489,14 +553,45 @@ function StorefrontSettingsEditor() {
   function moveBlock(index: number, direction: number) {
     setConfig((c) => { const blocks = [...c.blocks]; const target = index + direction; if (target < 0 || target >= blocks.length) return c; const temp = blocks[index]; blocks[index] = blocks[target]; blocks[target] = temp; return { ...c, blocks }; });
   }
+  function addWorkflow() {
+    setConfig((c) => ({ ...c, workflows: [...(c.workflows || []), { id: 'flow-' + Date.now(), name: 'Новое правило', enabled: true, trigger: 'click', listenOn: 'any', condition: 'always', conditionValue: '', action: 'show-message', targetId: '', value: 'Сработало!' }] }));
+  }
+  function updateWorkflow(index: number, key: keyof WorkflowRule, value: string | boolean) {
+    setConfig((c) => ({ ...c, workflows: c.workflows.map((rule, i) => i === index ? { ...rule, [key]: value } : rule) }));
+  }
+  function moveWorkflow(index: number, direction: number) {
+    setConfig((c) => { const workflows = [...c.workflows]; const target = index + direction; if (target < 0 || target >= workflows.length) return c; [workflows[index], workflows[target]] = [workflows[target], workflows[index]]; return { ...c, workflows }; });
+  }
   if (loading) return <div className="skeleton" style={{ height: 220 }} />;
   return <section className="visual-editor">
     <div className="visual-editor-heading"><div><span className="eyebrow">Редактор сайта</span><h2>Оформление витрины</h2><p>Изменения сохраняются в базе данных и сразу применяются к публичному сайту.</p></div><button className="primary-button" onClick={() => void save()} disabled={saving}>{saving ? 'Сохраняем…' : 'Опубликовать оформление'}</button></div>
     {error && <p className="form-error" role="alert">{error}</p>}{saved && <p className="editor-saved" role="status">Оформление сохранено.</p>}
     <div className="visual-editor-grid">
-      <div className="editor-group"><h3>Цвета и шрифты</h3><label className="form-field">Фон сайта<input type="color" value={config.theme.background} onChange={e => updateTheme('background', e.target.value)} /></label><label className="form-field">Цвет текста<input type="color" value={config.theme.text} onChange={e => updateTheme('text', e.target.value)} /></label><label className="form-field">Основной цвет / кнопки<input type="color" value={config.theme.accent} onChange={e => updateTheme('accent', e.target.value)} /></label><label className="form-field">Цвет текста кнопок<input type="color" value={config.theme.accentText} onChange={e => updateTheme('accentText', e.target.value)} /></label><label className="form-field">Фон карточек<input type="color" value={config.theme.cardBackground} onChange={e => updateTheme('cardBackground', e.target.value)} /></label><label className="form-field">Градиент CSS<input value={config.theme.gradient} onChange={e => updateTheme('gradient', e.target.value)} placeholder="linear-gradient(...)" /></label><label className="form-field">Шрифт текста<select value={config.theme.font} onChange={e => updateTheme('font', e.target.value)}><option>DM Sans</option><option>Arial</option><option>Georgia</option><option>Inter</option><option>system-ui</option></select></label><label className="form-field">Шрифт заголовков<select value={config.theme.headingFont} onChange={e => updateTheme('headingFont', e.target.value)}><option>Cormorant Garamond</option><option>Georgia</option><option>Arial</option><option>DM Sans</option></select></label></div>
+      <div className="editor-group editor-group-wide"><h3>Название сайта и текст всей страницы</h3><p className="editor-help">Здесь меняется текст от шапки до самого низа сайта. Предпросмотр обновляется сразу.</p><div className="editor-block-fields">
+<label className="form-field">Название сайта<input value={config.content.siteName} onChange={e => updateContent('siteName', e.target.value)} /></label>
+<label className="form-field">Подпись под названием<input value={config.content.siteTagline} onChange={e => updateContent('siteTagline', e.target.value)} /></label>
+<label className="form-field">Пункт меню «Каталог»<input value={config.content.navCatalogLabel} onChange={e => updateContent('navCatalogLabel', e.target.value)} /></label>
+<label className="form-field">Пункт меню «О нас»<input value={config.content.navAboutLabel} onChange={e => updateContent('navAboutLabel', e.target.value)} /></label>
+<label className="form-field">Текст корзины<input value={config.content.cartLabel} onChange={e => updateContent('cartLabel', e.target.value)} /></label>
+<label className="form-field">Текст кнопки входа<input value={config.content.signInLabel} onChange={e => updateContent('signInLabel', e.target.value)} /></label>
+<label className="form-field">Верхняя строка / объявление<input value={config.content.announcement} onChange={e => updateContent('announcement', e.target.value)} /></label>
+<label className="form-field">Бегущая строка — текст 1<input value={config.content.ticker1} onChange={e => updateContent('ticker1', e.target.value)} /></label>
+<label className="form-field">Бегущая строка — текст 2<input value={config.content.ticker2} onChange={e => updateContent('ticker2', e.target.value)} /></label>
+<label className="form-field">Бегущая строка — текст 3<input value={config.content.ticker3} onChange={e => updateContent('ticker3', e.target.value)} /></label>
+<label className="form-field">Надзаголовок каталога<input value={config.content.catalogEyebrow} onChange={e => updateContent('catalogEyebrow', e.target.value)} /></label>
+<label className="form-field">Заголовок каталога<textarea rows={2} value={config.content.catalogTitle} onChange={e => updateContent('catalogTitle', e.target.value)} /></label>
+<label className="form-field">Подсказка поиска<input value={config.content.searchPlaceholder} onChange={e => updateContent('searchPlaceholder', e.target.value)} /></label>
+<label className="form-field">Надзаголовок «О нас»<input value={config.content.storyEyebrow} onChange={e => updateContent('storyEyebrow', e.target.value)} /></label>
+<label className="form-field">Цитата внизу страницы<textarea rows={2} value={config.content.storyQuote} onChange={e => updateContent('storyQuote', e.target.value)} /></label>
+<label className="form-field">Текст ссылки «О нас»<input value={config.content.storyLinkText} onChange={e => updateContent('storyLinkText', e.target.value)} /></label>
+<label className="form-field">Ссылка «О нас»<input value={config.content.storyLinkUrl} onChange={e => updateContent('storyLinkUrl', e.target.value)} /></label>
+<label className="form-field">Подвал — город / адрес<input value={config.content.footerLocation} onChange={e => updateContent('footerLocation', e.target.value)} /></label>
+<label className="form-field">Подвал — описание<input value={config.content.footerNote} onChange={e => updateContent('footerNote', e.target.value)} /></label>
+<label className="form-field">Подпись авторского права<input value={config.content.copyrightLabel} onChange={e => updateContent('copyrightLabel', e.target.value)} /></label>
+</div></div>
+<div className="editor-group"><h3>Цвета и шрифты</h3><label className="form-field">Фон сайта<input type="color" value={config.theme.background} onChange={e => updateTheme('background', e.target.value)} /></label><label className="form-field">Цвет текста<input type="color" value={config.theme.text} onChange={e => updateTheme('text', e.target.value)} /></label><label className="form-field">Основной цвет / кнопки<input type="color" value={config.theme.accent} onChange={e => updateTheme('accent', e.target.value)} /></label><label className="form-field">Цвет текста кнопок<input type="color" value={config.theme.accentText} onChange={e => updateTheme('accentText', e.target.value)} /></label><label className="form-field">Фон карточек<input type="color" value={config.theme.cardBackground} onChange={e => updateTheme('cardBackground', e.target.value)} /></label><label className="form-field">Градиент CSS<input value={config.theme.gradient} onChange={e => updateTheme('gradient', e.target.value)} placeholder="linear-gradient(...)" /></label><label className="form-field">Шрифт текста<select value={config.theme.font} onChange={e => updateTheme('font', e.target.value)}><option>DM Sans</option><option>Arial</option><option>Georgia</option><option>Inter</option><option>system-ui</option></select></label><label className="form-field">Шрифт заголовков<select value={config.theme.headingFont} onChange={e => updateTheme('headingFont', e.target.value)}><option>Cormorant Garamond</option><option>Georgia</option><option>Arial</option><option>DM Sans</option></select></label></div>
       <div className="editor-group"><h3>Сетка и анимации</h3><label className="form-field">Колонки каталога<select value={config.theme.cardColumns} onChange={e => updateTheme('cardColumns', Number(e.target.value))}><option value={2}>2 колонки</option><option value={3}>3 колонки</option><option value={4}>4 колонки</option><option value={5}>5 колонок</option></select></label><label className="form-field">Схема главного экрана<select value={config.theme.heroLayout || 'split'} onChange={e => updateTheme('heroLayout', e.target.value)}><option value="split">Текст слева, фото справа</option><option value="image-left">Фото слева, текст справа</option><option value="centered">По центру</option></select></label><label className="form-field">Пропорции фото<select value={config.theme.imageRatio} onChange={e => updateTheme('imageRatio', e.target.value)}><option value="1 / 1">Квадрат 1:1</option><option value="4 / 5">Портрет 4:5</option><option value="3 / 2">Альбом 3:2</option><option value="16 / 9">Широкий 16:9</option></select></label><label className="form-field">Скругление карточек (px)<input type="number" min="0" max="40" value={config.theme.cardRadius} onChange={e => updateTheme('cardRadius', Number(e.target.value))} /></label><label className="form-field">Анимация<select value={config.theme.animation} onChange={e => updateTheme('animation', e.target.value)}><option value="lift">Подъём при наведении</option><option value="fade">Плавное появление</option><option value="glow">Свечение</option><option value="none">Без анимации</option></select></label><label className="form-field">Длительность (мс)<input type="number" min="0" max="2000" step="50" value={config.theme.animationDuration} onChange={e => updateTheme('animationDuration', Number(e.target.value))} /></label><label className="editor-check"><input type="checkbox" checked={config.theme.colorAnimation} onChange={e => updateTheme('colorAnimation', e.target.checked)} /> Анимировать цветовые переходы</label></div>
-      <div className="editor-group editor-group-wide"><h3>Тексты, изображения и ссылки</h3><label className="form-field">Бегущая строка / объявление<input value={config.content.announcement} onChange={e => updateContent('announcement', e.target.value)} /></label><label className="form-field">Надзаголовок главного экрана<input value={config.content.heroEyebrow} onChange={e => updateContent('heroEyebrow', e.target.value)} /></label><label className="form-field">Заголовок (перенос строки через Enter)<textarea rows={2} value={config.content.heroTitle} onChange={e => updateContent('heroTitle', e.target.value)} /></label><label className="form-field">Описание главного экрана<textarea rows={3} value={config.content.heroText} onChange={e => updateContent('heroText', e.target.value)} /></label><label className="form-field">Текст кнопки<input value={config.content.heroButtonText} onChange={e => updateContent('heroButtonText', e.target.value)} /></label><label className="form-field">URL картинки главного экрана<input value={config.content.heroImage} onChange={e => updateContent('heroImage', e.target.value)} placeholder="/images/..." /></label><label className="form-field">Ссылка при нажатии на картинку<input value={config.content.heroImageLink} onChange={e => updateContent('heroImageLink', e.target.value)} placeholder="https://... или #catalog" /></label><label className="form-field">Заголовок блока «О нас»<textarea rows={2} value={config.content.storyTitle} onChange={e => updateContent('storyTitle', e.target.value)} /></label><label className="form-field">Текст «О нас»<textarea rows={3} value={config.content.storyText} onChange={e => updateContent('storyText', e.target.value)} /></label></div>
+      <div className="editor-group editor-group-wide"><h3>Тексты, изображения и ссылки</h3><label className="form-field">Надзаголовок главного экрана<input value={config.content.heroEyebrow} onChange={e => updateContent('heroEyebrow', e.target.value)} /></label><label className="form-field">Заголовок (перенос строки через Enter)<textarea rows={2} value={config.content.heroTitle} onChange={e => updateContent('heroTitle', e.target.value)} /></label><label className="form-field">Описание главного экрана<textarea rows={3} value={config.content.heroText} onChange={e => updateContent('heroText', e.target.value)} /></label><label className="form-field">Текст кнопки<input value={config.content.heroButtonText} onChange={e => updateContent('heroButtonText', e.target.value)} /></label><label className="form-field">Ссылка кнопки<input value={config.content.heroButtonUrl} onChange={e => updateContent('heroButtonUrl', e.target.value)} placeholder="#catalog или https://..." /></label><label className="form-field">Метка над фото<input value={config.content.heroIndexText} onChange={e => updateContent('heroIndexText', e.target.value)} /></label><label className="form-field">Подпись под фото<input value={config.content.heroNote} onChange={e => updateContent('heroNote', e.target.value)} /></label><label className="form-field">URL картинки главного экрана<input value={config.content.heroImage} onChange={e => updateContent('heroImage', e.target.value)} placeholder="/images/..." /></label><label className="form-field">Ссылка при нажатии на картинку<input value={config.content.heroImageLink} onChange={e => updateContent('heroImageLink', e.target.value)} placeholder="https://... или #catalog" /></label><label className="form-field">Заголовок блока «О нас»<textarea rows={2} value={config.content.storyTitle} onChange={e => updateContent('storyTitle', e.target.value)} /></label><label className="form-field">Текст «О нас»<textarea rows={3} value={config.content.storyText} onChange={e => updateContent('storyText', e.target.value)} /></label></div>
     </div>
     <div className="editor-group editor-group-wide"><div className="editor-blocks-heading"><div><h3>Свободные блоки страницы</h3><p>Меняйте порядок, размер, цвет, текст, медиа и ссылку каждого блока.</p></div><div className="editor-add-blocks">{(['text','image','video','audio','button','embed'] as StorefrontBlock['type'][]).map(type => <button key={type} className="secondary-button" onClick={() => addBlock(type)}>+ {({text:'Текст',image:'Фото',video:'Видео',audio:'Аудио',button:'Кнопка',embed:'Встраивание'} as Record<string,string>)[type]}</button>)}</div></div>
       {config.blocks.map((block, index) => <div className="editor-block" key={block.id}><div className="editor-block-top"><strong>{index + 1}. {block.type}</strong><div><button className="plain-icon" onClick={() => moveBlock(index, -1)} disabled={index === 0} aria-label="Переместить выше"><ChevronUp size={16}/></button><button className="plain-icon" onClick={() => moveBlock(index, 1)} disabled={index === config.blocks.length - 1} aria-label="Переместить ниже"><ChevronDown size={16}/></button><button className="plain-icon" onClick={() => setConfig(c => ({...c, blocks:c.blocks.filter((_,i)=>i!==index)}))} aria-label="Удалить блок"><Trash2 size={15}/></button></div></div>
@@ -522,6 +617,22 @@ function StorefrontSettingsEditor() {
         </div>
       </div>)}
       {!config.blocks.length && <p className="editor-empty">Пока нет блоков. Добавьте текст, картинку, видео, аудио или кнопку выше.</p>}
+      <div className="editor-group editor-group-wide puzzle-workspace">
+        <div className="editor-blocks-heading"><div><h3>Конструктор действий — как пазлы</h3><p>Собери цепочку: <b>КОГДА</b> событие → <b>ЕСЛИ</b> условие → <b>ТО</b> действие. Правила сохраняются и работают на опубликованном сайте.</p></div><button className="primary-button" onClick={addWorkflow}>+ Добавить правило</button></div>
+        <div className="puzzle-examples"><span>КОГДА пользователь нажал</span><span>КОГДА свайпнул влево / вправо</span><span>ЕСЛИ условие верно</span><span>ТО показать фото / анимацию / ссылку / видео</span></div>
+        {config.workflows.map((rule, index) => <article className="puzzle-rule" key={rule.id}>
+          <div className="puzzle-rule-head"><div><span className="puzzle-number">{String(index + 1).padStart(2, '0')}</span><input aria-label="Название правила" value={rule.name} onChange={e => updateWorkflow(index, 'name', e.target.value)} /></div><div className="puzzle-rule-actions"><label className="editor-check"><input type="checkbox" checked={rule.enabled} onChange={e => updateWorkflow(index, 'enabled', e.target.checked)} /> Включено</label><button className="plain-icon" onClick={() => moveWorkflow(index, -1)} disabled={index === 0} aria-label="Правило выше"><ChevronUp size={16}/></button><button className="plain-icon" onClick={() => moveWorkflow(index, 1)} disabled={index === config.workflows.length - 1} aria-label="Правило ниже"><ChevronDown size={16}/></button><button className="plain-icon" onClick={() => setConfig(c => ({...c, workflows:c.workflows.filter((_,i)=>i!==index)}))} aria-label="Удалить правило"><Trash2 size={15}/></button></div></div>
+          <div className="puzzle-chain">
+            <section className="puzzle-piece puzzle-trigger"><span>1 · КОГДА</span><strong>Событие</strong><select value={rule.trigger} onChange={e => updateWorkflow(index, 'trigger', e.target.value)}><option value="page-load">Страница открылась</option><option value="click">Пользователь нажал</option><option value="swipe-left">Свайп влево</option><option value="swipe-right">Свайп вправо</option></select>{rule.trigger === 'click' && <label className="form-field">Где нажали<select value={rule.listenOn} onChange={e => updateWorkflow(index, 'listenOn', e.target.value)}><option value="any">В любом месте</option><option value="hero">Главный экран</option><option value="hero-button">Кнопка главного экрана</option><option value="hero-image">Фото главного экрана</option><option value="catalog">Каталог</option><option value="product-card">Карточка товара</option><option value="about">Блок «О нас»</option><option value="footer">Подвал сайта</option><option value="cart-toggle">Кнопка корзины</option>{config.blocks.map(b => <option key={b.id} value={b.id}>Блок: {b.title || b.id}</option>)}</select></label>}</section>
+            <div className="puzzle-connector">↓</div>
+            <section className="puzzle-piece puzzle-condition"><span>2 · ЕСЛИ</span><strong>Условие</strong><select value={rule.condition} onChange={e => updateWorkflow(index, 'condition', e.target.value)}><option value="always">Всегда</option><option value="mobile">На телефоне</option><option value="desktop">На компьютере</option><option value="cart-has-items">В корзине есть товар</option><option value="url-contains">Адрес страницы содержит…</option></select>{rule.condition === 'url-contains' && <input placeholder="например, ?promo=1" value={rule.conditionValue || ''} onChange={e => updateWorkflow(index, 'conditionValue', e.target.value)} />}</section>
+            <div className="puzzle-connector">↓</div>
+            <section className="puzzle-piece puzzle-action"><span>3 · ТО</span><strong>Действие</strong><select value={rule.action} onChange={e => updateWorkflow(index, 'action', e.target.value)}><option value="show">Показать элемент</option><option value="hide">Скрыть элемент</option><option value="toggle">Переключить видимость</option><option value="animate">Запустить анимацию</option><option value="scroll">Прокрутить к элементу</option><option value="play-video">Воспроизвести видео</option><option value="navigate">Перейти по ссылке</option><option value="open-link">Открыть ссылку в новой вкладке</option><option value="show-message">Показать сообщение</option></select>{(['show','hide','toggle','animate','scroll','play-video'] as WorkflowAction[]).includes(rule.action) && <label className="form-field">Целевой элемент<select value={rule.targetId || ''} onChange={e => updateWorkflow(index, 'targetId', e.target.value)}><option value="">Выбрать элемент…</option><option value="hero">Главный экран</option><option value="hero-image">Фото главного экрана</option><option value="hero-button">Кнопка главного экрана</option><option value="ticker">Бегущая строка</option><option value="catalog">Каталог</option><option value="product-card">Карточка товара</option><option value="about">Блок «О нас»</option><option value="story-link">Ссылка «О нас»</option><option value="footer">Подвал сайта</option><option value="cart-toggle">Кнопка корзины</option><option value="cart-panel">Корзина (когда открыта)</option>{config.blocks.map(b => <option key={b.id} value={b.id}>Блок: {b.title || b.id}</option>)}</select></label>}{rule.action === 'animate' && <label className="form-field">Анимация<select value={rule.value || 'pulse'} onChange={e => updateWorkflow(index, 'value', e.target.value)}><option value="pulse">Пульс</option><option value="shake">Покачивание</option><option value="bounce">Прыжок</option><option value="glow">Свечение</option><option value="fade">Появление</option></select></label>}{(['navigate','open-link','show-message'] as WorkflowAction[]).includes(rule.action) && <label className="form-field">{rule.action === 'show-message' ? 'Текст сообщения' : 'URL / адрес'}<input value={rule.value || ''} onChange={e => updateWorkflow(index, 'value', e.target.value)} placeholder={rule.action === 'show-message' ? 'Готово!' : 'https://... или #catalog'} /></label>}</section>
+          </div>
+          <div className="puzzle-rule-foot"><span>{rule.enabled ? '● Правило включено' : '○ Правило выключено'}</span><span>Правила выполняются сверху вниз.</span></div>
+        </article>)}
+        {!config.workflows.length && <div className="editor-empty">Пример: «Когда нажали на кнопку → если открыт на телефоне → прокрутить к каталогу».</div>}
+      </div>
       <div className="editor-live-preview">
         <div className="editor-live-preview-head"><strong>ЖИВОЙ ПРЕДПРОСМОТР</strong><span>Изменяется вместе с настройками выше</span></div>
         <div className="editor-live-preview-store" style={{
@@ -537,12 +648,12 @@ function StorefrontSettingsEditor() {
           ['--site-card-radius' as any]: String(config.theme.cardRadius) + 'px',
           ['--site-animation-duration' as any]: String(config.theme.animationDuration) + 'ms',
         } as any}>
-          <div className="editor-mini-site-head"><strong>тихо.</strong><span>КАТАЛОГ · ПРЕДПРОСМОТР</span></div>
+          <div className="editor-mini-announcement">{config.content.announcement}</div><div className="editor-mini-site-head"><strong>{config.content.siteName}</strong><span>{config.content.navCatalogLabel} · {config.content.navAboutLabel}</span><small>{config.content.siteTagline}</small></div>
           <div className="editor-mini-hero" style={{ background: config.theme.gradient }}>
             <div><small>{config.content.heroEyebrow}</small><h3 style={{ fontFamily: config.theme.headingFont }}>{config.content.heroTitle.replace(/\n/g, ' ')}</h3><p>{config.content.heroText}</p><span style={{ background: config.theme.accent, color: config.theme.accentText }}>{config.content.heroButtonText}</span></div>
             <div className="editor-mini-product" style={{ background: config.theme.cardBackground, borderRadius: config.theme.cardRadius }}><img src={config.content.heroImage || '/images/orbit-vase.png'} alt="" /><strong>Керамическая ваза</strong><small>12 000 ₸</small></div>
           </div>
-          <StorefrontBlocks blocks={config.blocks} />
+          <div className="editor-mini-ticker">{config.content.ticker1}　•　{config.content.ticker2}　•　{config.content.ticker3}</div><section className="editor-mini-catalog"><small>{config.content.catalogEyebrow}</small><h3>{config.content.catalogTitle.replace(/\n/g, " ")}</h3><div className="editor-mini-cards">{[1,2,3].map(n => <div key={n} style={{ background: config.theme.cardBackground, borderRadius: config.theme.cardRadius }}><img src={n === 1 ? config.content.heroImage || "/images/orbit-vase.png" : n === 2 ? "/images/linen-lamp.png" : "/images/terracotta-tray.png"} alt="" /><span>Пример товара {n}</span><small>12 000 ₸</small></div>)}</div></section><StorefrontBlocks blocks={config.blocks} /><section className="editor-mini-story" style={{ background: config.theme.gradient }}><small>{config.content.storyEyebrow}</small><h3>{config.content.storyTitle.replace(/\n/g, " ")}</h3><p>{config.content.storyText}</p><blockquote>{config.content.storyQuote}</blockquote></section><footer className="editor-mini-footer"><strong>{config.content.siteName}</strong><span>{config.content.footerLocation}</span><span>{config.content.footerNote}</span><small>© {new Date().getFullYear()} {config.content.copyrightLabel}</small></footer>
         </div>
       </div>
     </div>
