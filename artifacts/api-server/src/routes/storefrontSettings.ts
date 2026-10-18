@@ -117,6 +117,18 @@ function validConfig(value: unknown): value is Record<string, any> {
       if (block[key] !== undefined && (typeof block[key] !== "string" || block[key].length > 4000)) return false;
     }
   }
+  for (const section of config.customSections || []) {
+    for (const block of section.blocks || []) {
+      if (!block || typeof block !== "object" || !allowedTypes.has(block.type) || typeof block.id !== "string" || block.id.length > 80) return false;
+      for (const key of ["url", "mediaUrl"]) if (block[key] !== undefined && !validUrl(block[key])) return false;
+      if (block.animation !== undefined && !allowedAnimations.has(block.animation)) return false;
+      if (block.rotation !== undefined && (!Number.isFinite(block.rotation) || block.rotation < -180 || block.rotation > 180)) return false;
+      if (block.animationDuration !== undefined && (!Number.isFinite(block.animationDuration) || block.animationDuration < 0 || block.animationDuration > 10000)) return false;
+      for (const key of ["title", "text", "label", "url", "mediaUrl", "background", "color", "width", "height", "fontSize", "titleSize", "padding", "outline"]) {
+        if (block[key] !== undefined && (typeof block[key] !== "string" || block[key].length > 4000)) return false;
+      }
+    }
+  }
   return true;
 }
 
