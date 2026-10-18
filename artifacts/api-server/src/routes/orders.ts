@@ -40,7 +40,6 @@ router.post("/orders", async (req, res): Promise<void> => {
     return;
   }
 
-  const cleanItems: Array<{ productId: number; quantity: number }> = [];
   const quantities = new Map<number, number>();
   for (const item of items) {
     if (!item || !Number.isSafeInteger(item.productId) || item.productId < 1 ||
@@ -67,10 +66,6 @@ router.post("/orders", async (req, res): Promise<void> => {
     for (const product of found.rows) {
       const quantity = quantities.get(product.id)!;
       total += Number(product.price) * quantity;
-      cleanItems.push({
-        productId: product.id,
-        quantity,
-      });
     }
     if (!Number.isSafeInteger(total) || total < 0 || total > 2_000_000_000) {
       res.status(400).json({ error: "Слишком большая сумма заказа." });
