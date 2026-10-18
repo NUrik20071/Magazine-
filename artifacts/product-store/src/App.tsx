@@ -307,6 +307,10 @@ function mediaEmbedUrl(value: string, type: StorefrontBlock['type']): string {
       url.searchParams.set('embed', '1');
       url.searchParams.set('mode', 'tme');
       return url.toString();
+    if (type === 'embed' && ['pinterest.com', 'www.pinterest.com'].includes(url.hostname.toLowerCase())) {
+      const pinId = url.pathname.match(/\/pin\/(\d+)/)?.[1];
+      if (pinId) return 'https://assets.pinterest.com/ext/embed.html?id=' + encodeURIComponent(pinId);
+    }
     }
   } catch { /* Keep relative and local asset paths unchanged. */ }
   return normalized;
@@ -330,7 +334,7 @@ function StorefrontBlocks({ blocks }: { blocks: StorefrontBlock[] }) {
     let content: ReactNode;
     if (block.type === 'text') content = <div className="custom-block-copy"><h2 style={{ fontSize: block.titleSize && block.titleSize !== 'inherit' ? block.titleSize : undefined }}>{block.title}</h2><p>{block.text}</p></div>;
     else if (block.type === 'image') content = block.mediaUrl ? <img className="custom-block-media" style={{ objectFit: block.objectFit || 'contain', maxHeight: mediaHeight }} src={normalizeSourceUrl(block.mediaUrl)} alt={block.title || ''} /> : <div className="custom-block-placeholder">Выберите изображение из галереи или вставьте прямую ссылку.</div>;
-    else if (block.type === 'video' && (youtubeVideoId(block.mediaUrl || '') || /^(?:https?:\/\/)?(?:www\.)?(?:t\.me|telegram\.me)\//i.test((block.mediaUrl || '').trim()))) content = <iframe className="custom-block-embed" src={mediaEmbedUrl(block.mediaUrl || '', 'embed')} title={block.title || 'Видео'} loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen />;
+    else if (block.type === 'video' && (youtubeVideoId(block.mediaUrl || '') || /^(?:https?:\/\/)?(?:www\.)?(?:t\.me|telegram\.me|pin\.it|pinterest\.com)\//i.test((block.mediaUrl || '').trim()))) content = <iframe className="custom-block-embed" src={mediaEmbedUrl(block.mediaUrl || '', 'embed')} title={block.title || 'Видео'} loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen />;
     else if (block.type === 'video') content = block.mediaUrl ? <video className="custom-block-media" style={{ objectFit: block.objectFit || 'contain', maxHeight: mediaHeight }} src={normalizeSourceUrl(block.mediaUrl)} controls playsInline /> : <div className="custom-block-placeholder">Загрузите видео или вставьте ссылку на MP4/WebM, YouTube или публичный пост Telegram.</div>;
     else if (block.type === 'audio') content = block.mediaUrl ? <audio src={normalizeSourceUrl(block.mediaUrl)} controls /> : <div className="custom-block-placeholder">Загрузите аудио или вставьте прямую ссылку на музыкальный файл.</div>;
     else if (block.type === 'embed') content = block.mediaUrl ? <iframe className="custom-block-embed" src={mediaEmbedUrl(block.mediaUrl, 'embed')} title={block.title || 'Встроенный контент'} loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen /> : <div className="custom-block-placeholder">Вставьте ссылку на YouTube, Telegram или другой источник в настройках блока.</div>;
@@ -571,6 +575,7 @@ function ProductEditor({ product, onClose, onSave, busy, onUploadMedia }: { prod
 function StorefrontSettingsEditor() {
   const { getToken } = useAuth();
   const [config, setConfig] = useState<StorefrontConfig>(defaultStorefront);
+  const [resolvingBlock, setResolvingBlock] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -584,6 +589,25 @@ function StorefrontSettingsEditor() {
   async function uploadMedia(file: File): Promise<string> { if (file.size > 25 * 1024 * 1024) throw new Error('Максимальный размер файла — 25 МБ.'); const token = await getToken(); const response = await fetch('/api/admin/media?filename=' + encodeURIComponent(file.name), { method: 'POST', headers: { 'Content-Type': file.type, ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: file }); const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Не удалось загрузить медиа'); return body.url as string; }
   async function uploadHeroImage(file?: File) { if (!file) return; try { updateContent('heroImage', await uploadMedia(file)); } catch (error) { setError(error instanceof Error ? error.message : 'Не удалось загрузить изображение'); } }
   async function uploadBlockMedia(index: number, file?: File) { if (!file) return; try { updateBlock(index, 'mediaUrl', await uploadMedia(file)); } catch (error) { setError(error instanceof Error ? error.message : 'Не удалось загрузить медиа'); } }
+  async function resolveBlockSource(index: number) {
+    const source = normalizeSourceUrl(config.blocks[index]?.mediaUrl || '');
+    if (!source) { setError('Сначала вставьте публичную ссылку на источник.'); return; }
+    setResolvingBlock(index); setError('');
+    try {
+      const response = await fetch('/api/media/resolve?url=' + encodeURIComponent(source));
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Не удалось получить источник');
+      const block = config.blocks[index];
+      const resolved = block.type === 'image' ? (body.imageUrl || body.mediaUrl || body.finalUrl)
+        : block.type === 'video' ? (['youtube', 'telegram', 'pinterest'].includes(body.provider) ? body.embedUrl : (body.videoUrl || body.mediaUrl || body.finalUrl))
+        : block.type === 'audio' ? (body.audioUrl || body.mediaUrl || body.finalUrl)
+        : block.type === 'map' ? body.finalUrl : (body.embedUrl || body.finalUrl);
+      if (resolved) updateBlock(index, 'mediaUrl', resolved);
+      if (body.title && !block.title) updateBlock(index, 'title', body.title);
+      setError(body.note || ('Источник распознан: ' + body.provider + '. Проверьте предпросмотр и сохраните страницу.'));
+    } catch (error) { setError(error instanceof Error ? error.message : 'Не удалось извлечь источник'); }
+    finally { setResolvingBlock(null); }
+  }
   const updateBlock = (index: number, key: keyof StorefrontBlock, value: string | number | boolean) => setConfig((c) => ({ ...c, blocks: c.blocks.map((b, i) => i === index ? { ...b, [key]: value } : b) }));
   async function save() {
     setSaving(true); setError(''); setSaved(false);
@@ -648,7 +672,7 @@ function StorefrontSettingsEditor() {
           <label className="form-field">Заголовок / подпись<input value={block.title || ''} onChange={e => updateBlock(index, 'title', e.target.value)} /></label>
           {block.type === 'text' && <label className="form-field">Текст<textarea rows={3} value={block.text || ''} onChange={e => updateBlock(index, 'text', e.target.value)} /></label>}
           {block.type === 'button' && <label className="form-field">Текст кнопки<input value={block.label || ''} onChange={e => updateBlock(index, 'label', e.target.value)} /></label>}
-          {(['image', 'video', 'audio', 'embed', 'map'] as string[]).includes(block.type) && <label className="form-field">URL медиа / встраивания<input value={block.mediaUrl || ''} onChange={e => updateBlock(index, 'mediaUrl', e.target.value)} onBlur={e => updateBlock(index, 'mediaUrl', normalizeSourceUrl(e.target.value))} placeholder={block.type === 'map' ? 'Ссылка на виджет / карту 2ГИС' : 'site.com/file.mp4 — https необязателен'} />{(['image', 'video', 'audio'] as string[]).includes(block.type) && <input aria-label="Выбрать медиа из галереи" type="file" accept={block.type === 'image' ? 'image/*' : block.type === 'video' ? 'video/mp4,video/webm,video/quicktime' : 'audio/mpeg,audio/mp4,audio/ogg,audio/wav,audio/webm'} onChange={e => { void uploadBlockMedia(index, e.target.files?.[0]); e.currentTarget.value = ''; }} />}</label>}
+          {(['image', 'video', 'audio', 'embed', 'map'] as string[]).includes(block.type) && <label className="form-field">URL медиа / встраивания<input value={block.mediaUrl || ''} onChange={e => updateBlock(index, 'mediaUrl', e.target.value)} onBlur={e => updateBlock(index, 'mediaUrl', normalizeSourceUrl(e.target.value))} placeholder={block.type === 'map' ? 'Ссылка на виджет / карту 2ГИС' : 'site.com/file.mp4 — https необязателен'} />{(['image', 'video', 'audio'] as string[]).includes(block.type) && <input aria-label="Выбрать медиа из галереи" type="file" accept={block.type === 'image' ? 'image/*' : block.type === 'video' ? 'video/mp4,video/webm,video/quicktime' : 'audio/mpeg,audio/mp4,audio/ogg,audio/wav,audio/webm'} onChange={e => { void uploadBlockMedia(index, e.target.files?.[0]); e.currentTarget.value = ''; }} />}<button type="button" className="secondary-button" onClick={() => void resolveBlockSource(index)} disabled={resolvingBlock !== null}>{resolvingBlock === index ? 'Извлекаем…' : 'Извлечь источник / превью'}</button><small className="editor-help">Публичные ссылки Telegram, pin.it / Pinterest, YouTube и 2ГИС. Закрытые публикации и защищённые файлы не извлекаются.</small></label>}
           <label className="form-field">Ссылка при нажатии<input value={block.url || ''} onChange={e => updateBlock(index, 'url', e.target.value)} onBlur={e => updateBlock(index, 'url', normalizeSourceUrl(e.target.value))} placeholder="example.com или #catalog" /></label>
           <label className="form-field">Фон / градиент<input value={block.background || ''} onChange={e => updateBlock(index, 'background', e.target.value)} placeholder="#ffffff или linear-gradient(...)" /></label>
           <label className="form-field">Цвет текста<input value={block.color || ''} onChange={e => updateBlock(index, 'color', e.target.value)} placeholder="#244c43" /></label>
