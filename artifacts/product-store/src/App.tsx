@@ -356,6 +356,20 @@ function ProductEditor({ product, onClose, onSave, busy }: { product: Product | 
 
 function AdminGate() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const [, navigate] = useLocation();
+  const [signingOut, setSigningOut] = useState(false);
+  const adminDisplayName = user?.fullName || user?.firstName || user?.primaryEmailAddress?.emailAddress || 'Администратор';
+  async function handleAdminSignOut() {
+    setSigningOut(true);
+    try {
+      await signOut({ redirectUrl: `${basePath}/` || '/' });
+      navigate('/');
+    } finally {
+      setSigningOut(false);
+    }
+  }
   const [tokenReady, setTokenReady] = useState(false);
   useEffect(() => {
     if (!isLoaded) return;
@@ -399,7 +413,10 @@ function AdminGate() {
     <p>После входа через Google панель откроется только для подтверждённого email из списка администратора. Если вы видите этот экран после входа, проверьте, что выбран правильный Google-аккаунт.</p>
     <Link className="cta" href="/sign-in" data-testid="link-admin-sign-in">Войти в аккаунт <ArrowRight size={15} /></Link>
     <button className="secondary-button" style={{ marginLeft: 8 }} onClick={() => { void overviewQuery.refetch(); void productsQuery.refetch(); }} data-testid="button-retry-admin">Проверить доступ</button>
-    <div style={{ marginTop: 17 }}><Link className="quiet-link" href="/" data-testid="link-return-store">Вернуться в магазин</Link></div>
+    <div className="gate-actions" style={{ marginTop: 17 }}>
+      <Link className="quiet-link" href="/" data-testid="link-return-store">Вернуться в магазин</Link>
+      {isSignedIn && <button className="account-logout" onClick={() => void handleAdminSignOut()} disabled={signingOut} data-testid="button-admin-gate-sign-out"><LogOut size={15} />{signingOut ? 'Выходим…' : 'Выйти из аккаунта'}</button>}
+    </div>
   </div></div>;
 
   return <div className="admin-layout">
@@ -414,7 +431,15 @@ function AdminGate() {
     <main className="admin-main"><div className="admin-content">
       <div className="admin-top">
         <div><div className="eyebrow">Тихо · администрирование</div><h1>{activeView === 'overview' ? 'Обзор магазина' : 'Каталог предметов'}</h1></div>
-        <button className="primary-button" onClick={() => setEditor(null)} data-testid="button-create-product"><Plus size={15} /> Новый предмет</button>
+        <div className="admin-top-actions">
+          <div className="admin-account" title={user?.primaryEmailAddress?.emailAddress || adminDisplayName}>
+            {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : <span className="admin-account-fallback"><UserRound size={15} /></span>}
+            <span><strong>{adminDisplayName}</strong><small>{user?.primaryEmailAddress?.emailAddress || 'Администратор'}</small></span>
+          </div>
+          <Link className="admin-store-switch" href="/" data-testid="button-switch-to-store"><ShoppingBag size={15} /> Обычный сайт</Link>
+          <button className="account-logout" onClick={() => void handleAdminSignOut()} disabled={signingOut} data-testid="button-admin-sign-out"><LogOut size={15} /><span>{signingOut ? 'Выходим…' : 'Выйти'}</span></button>
+          <button className="primary-button" onClick={() => setEditor(null)} data-testid="button-create-product"><Plus size={15} /> Новый предмет</button>
+        </div>
       </div>
       {notice && <p role="status" style={{ color: '#486d53', fontSize: 12 }} data-testid="status-admin-notice">{notice}<button className="plain-icon" onClick={() => setNotice('')} aria-label="Закрыть сообщение"><X size={13} /></button></p>}
       {activeView === 'overview' ? <>
