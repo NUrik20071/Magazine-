@@ -145,7 +145,7 @@ function AdminHeaderLink() {
   return <Link className="quiet-link" href="/admin" data-testid="link-admin-panel">Панель управления</Link>;
 }
 
-function ShopHeader({ count, onCart }: { count: number; onCart: () => void }) {
+function ShopHeader({ count, onCart, announcement }: { count: number; onCart: () => void; announcement: string }) {
   const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
   const { signOut } = useClerk();
@@ -162,7 +162,7 @@ function ShopHeader({ count, onCart }: { count: number; onCart: () => void }) {
   }
 
   return <>
-    <div className="announcement">Доставка по Казахстану · бесплатно от 35 000 ₸</div>
+    <div className="announcement">{announcement}</div>
     <header className="header">
       <Link href="/" className="brand" data-testid="link-home">тихо.<small>дом и повседневность</small></Link>
       <nav className="header-links" aria-label="Главная навигация">
@@ -294,6 +294,8 @@ function ProductDetailModal({ product, onClose, onAdd }: { product: Product; onC
 }
 
 function Catalog() {
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [storefront, setStorefront] = useState<StorefrontConfig>(defaultStorefront);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [cartOpen, setCartOpen] = useState(false);
@@ -302,6 +304,8 @@ function Catalog() {
   });
   const listParams = useMemo(() => ({ ...(search.trim() ? { search: search.trim() } : {}), ...(category ? { category } : {}) }), [search, category]);
   const productsQuery = useListProducts(listParams);
+  useEffect(() => { fetch('/api/storefront/settings').then((r) => r.ok ? r.json() : null).then((config) => { if (config && config.theme && config.content && Array.isArray(config.blocks)) setStorefront({ ...defaultStorefront, ...config, theme: { ...defaultStorefront.theme, ...config.theme }, content: { ...defaultStorefront.content, ...config.content } }); }).catch(() => undefined); }, []);
+  useEffect(() => { const root = document.documentElement; root.style.setProperty('--site-background', storefront.theme.background); root.style.setProperty('--site-text', storefront.theme.text); root.style.setProperty('--site-accent', storefront.theme.accent); root.style.setProperty('--site-accent-text', storefront.theme.accentText); root.style.setProperty('--site-card-background', storefront.theme.cardBackground); root.style.setProperty('--site-gradient', storefront.theme.gradient); root.style.setProperty('--site-font', '"' + storefront.theme.font + '", sans-serif'); root.style.setProperty('--site-heading-font', '"' + storefront.theme.headingFont + '", serif'); root.style.setProperty('--site-card-radius', storefront.theme.cardRadius + 'px'); root.style.setProperty('--site-card-columns', String(storefront.theme.cardColumns)); root.style.setProperty('--site-image-ratio', storefront.theme.imageRatio); root.style.setProperty('--site-animation-duration', storefront.theme.animationDuration + 'ms'); root.dataset.siteAnimation = storefront.theme.animation; root.dataset.colorAnimation = String(storefront.theme.colorAnimation); }, [storefront]);
   const summaryQuery = useGetStoreSummary();
   const products = productsQuery.data ?? [];
   useEffect(() => {
@@ -333,7 +337,7 @@ function Catalog() {
   const removeItem = (id: number) => setCart((items) => items.filter((item) => item.product.id !== id));
 
   return <div className="shop-shell">
-    <ShopHeader count={count} onCart={() => setCartOpen(true)} />
+    <ShopHeader count={count} onCart={() => setCartOpen(true)} announcement={storefront.content.announcement} />
     <main>
       <section className="hero">
         <div className="hero-copy">
