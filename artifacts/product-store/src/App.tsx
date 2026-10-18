@@ -319,14 +319,14 @@ function Catalog() {
   const [category, setCategory] = useState('');
   const [cartOpen, setCartOpen] = useState(false);
   const [workflowNotice, setWorkflowNotice] = useState('');
+  const [storefrontLoaded, setStorefrontLoaded] = useState(false);
   const touchStartX = useRef<number | null>(null);
-  const workflowsStarted = useRef(false);
   const [cart, setCart] = useState<CartItem[]>(() => {
     try { return restoreCart(localStorage.getItem('tihoshop-cart')); } catch { return []; }
   });
   const listParams = useMemo(() => ({ ...(search.trim() ? { search: search.trim() } : {}), ...(category ? { category } : {}) }), [search, category]);
   const productsQuery = useListProducts(listParams);
-  useEffect(() => { fetch('/api/storefront/settings').then((r) => r.ok ? r.json() : null).then((config) => { if (config && config.theme && config.content && Array.isArray(config.blocks)) setStorefront({ ...defaultStorefront, ...config, theme: { ...defaultStorefront.theme, ...config.theme }, content: { ...defaultStorefront.content, ...config.content }, blocks: Array.isArray(config.blocks) ? config.blocks : [], workflows: Array.isArray(config.workflows) ? config.workflows : [] }); }).catch(() => undefined); }, []);
+  useEffect(() => { fetch('/api/storefront/settings').then((r) => r.ok ? r.json() : null).then((config) => { if (config && config.theme && config.content && Array.isArray(config.blocks)) setStorefront({ ...defaultStorefront, ...config, theme: { ...defaultStorefront.theme, ...config.theme }, content: { ...defaultStorefront.content, ...config.content }, blocks: Array.isArray(config.blocks) ? config.blocks : [], workflows: Array.isArray(config.workflows) ? config.workflows : [] }); }).catch(() => undefined).finally(() => setStorefrontLoaded(true)); }, []);
   const runWorkflows = (trigger: WorkflowTrigger, sourceId = 'any') => {
     for (const rule of storefront.workflows || []) {
       if (!rule.enabled || rule.trigger !== trigger) continue;
@@ -369,11 +369,10 @@ function Catalog() {
     if (Math.abs(delta) >= 55) runWorkflows(delta < 0 ? 'swipe-left' : 'swipe-right');
   };
   useEffect(() => {
-    if (workflowsStarted.current) return;
-    workflowsStarted.current = true;
+    if (!storefrontLoaded) return;
     const frame = window.requestAnimationFrame(() => runWorkflows('page-load'));
     return () => window.cancelAnimationFrame(frame);
-  }, [storefront.workflows]);
+  }, [storefrontLoaded]);
   useEffect(() => {
     if (!workflowNotice) return;
     const timer = window.setTimeout(() => setWorkflowNotice(''), 3200);
