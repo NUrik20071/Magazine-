@@ -354,6 +354,9 @@ function StorefrontBlocks({ blocks }: { blocks: StorefrontBlock[] }) {
       fontSize: block.fontSize || undefined,
       padding: block.padding || '22px',
       borderRadius: String(Math.max(0, Math.min(48, Number(block.radius ?? 0)))) + 'px',
+      outline: block.outline || undefined,
+      transform: Number(block.rotation || 0) ? 'rotate(' + Math.max(-180, Math.min(180, Number(block.rotation))) + 'deg)' : undefined,
+      ['--block-animation-duration' as any]: Math.max(0, Math.min(10000, Number(block.animationDuration ?? 500))) + 'ms',
       textAlign: block.textAlign || 'left',
       gridColumn: 'span ' + columns,
     };
@@ -364,6 +367,7 @@ function StorefrontBlocks({ blocks }: { blocks: StorefrontBlock[] }) {
     else if (block.type === 'video' && isPinterestSource(block.mediaUrl || '')) content = <PinterestEmbed url={block.mediaUrl || ''} title={block.title || 'Pinterest'} />;
     else if (block.type === 'video') content = block.mediaUrl ? <video className="custom-block-media" style={{ objectFit: block.objectFit || 'contain', maxHeight: mediaHeight }} src={normalizeSourceUrl(block.mediaUrl)} controls playsInline /> : <div className="custom-block-placeholder">Загрузите видео или вставьте ссылку на MP4/WebM, YouTube или публичный пост Telegram.</div>;
     else if (block.type === 'audio') content = block.mediaUrl ? <audio src={normalizeSourceUrl(block.mediaUrl)} controls /> : <div className="custom-block-placeholder">Загрузите аудио или вставьте прямую ссылку на музыкальный файл.</div>;
+    else if (block.type === 'carousel') { const slides = (block.mediaUrl || '').split(/\\n+/).map((url) => normalizeSourceUrl(url.trim())).filter(Boolean); content = slides.length ? <div className="custom-carousel" aria-label={block.title || 'Карусель медиа'}>{slides.map((url, slideIndex) => <figure className="custom-carousel-slide" key={url + slideIndex}>{isVideoMedia(url) ? <video src={url} controls muted playsInline preload="metadata" /> : <img src={url} alt={(block.title || 'Слайд') + ' ' + (slideIndex + 1)} loading="lazy" />}<figcaption>{slides.length > 1 ? String(slideIndex + 1).padStart(2, '0') + ' / ' + String(slides.length).padStart(2, '0') : block.title}</figcaption></figure>)}</div> : <div className="custom-block-placeholder">Добавьте ссылки на фото/видео — по одной на строку.</div>; }
     else if (block.type === 'embed' && block.mediaUrl && isPinterestSource(block.mediaUrl)) content = <PinterestEmbed url={block.mediaUrl} title={block.title || 'Pinterest'} />;
     else if (block.type === 'embed') content = block.mediaUrl ? <iframe className="custom-block-embed" src={mediaEmbedUrl(block.mediaUrl, 'embed')} title={block.title || 'Встроенный контент'} loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen /> : <div className="custom-block-placeholder">Вставьте ссылку на YouTube, Telegram, Pinterest или другой источник в настройках блока.</div>;
     else if (block.type === 'map') content = block.mediaUrl ? <div className="custom-block-map-wrap"><iframe className="custom-block-map" src={mediaEmbedUrl(block.mediaUrl, 'map')} title={block.title || 'Карта 2ГИС'} loading="lazy" allowFullScreen /><a href={normalizeSourceUrl(block.mediaUrl)} target="_blank" rel="noreferrer">Открыть карту в источнике <ExternalLink size={14} /></a></div> : <div className="custom-block-placeholder">Вставьте ссылку на виджет карты 2ГИС.</div>;
