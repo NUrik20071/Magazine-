@@ -19,7 +19,7 @@ import {
 import type { Product } from '@workspace/api-client-react';
 import {
   ArrowDownRight, ArrowRight, Leaf, LogOut, Minus, Package, Pencil,
-  Plus, Search, ShoppingBag, Trash2, UserRound, X,
+  Plus, Search, ShoppingBag, Trash2, UserRound, X, ClipboardList, Check, Ban,
 } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -208,11 +208,29 @@ function CartDrawer({ items, onClose, onQty, onRemove }: {
   onClose: () => void;
   onQty: (id: number, delta: number) => void;
   onRemove: (id: number) => void;
+  onOrderSubmitted: () => void;
 }) {
   const total = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const [checkout, setCheckout] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [orderError, setOrderError] = useState('');
+  const [orderSuccess, setOrderSuccess] = useState('');
+  const [details, setDetails] = useState({ customerName: '', phone: '', email: '', address: '', note: '' });
+  async function submitOrder(event: FormEvent) {
+    event.preventDefault(); setSending(true); setOrderError('');
+    try {
+      const response = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...details, items: items.map(({ product, quantity }) => ({ productId: product.id, quantity })) }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Не удалось отправить заказ');
+      setOrderSuccess('Заявка №' + result.id + ' отправлена. Мы проверим заказ и свяжемся с вами.');
+      onOrderSubmitted(); setCheckout(false);
+    } catch (error) { setOrderError(error instanceof Error ? error.message : 'Ошибка отправки. Попробуйте ещё раз.'); }
+    finally { setSending(false); }
+  }
   return <div className="drawer-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <aside className="cart-drawer" role="dialog" aria-modal="true" aria-label="Корзина">
       <div className="drawer-head"><h2>Ваша корзина</h2><button className="plain-icon" onClick={onClose} aria-label="Закрыть корзину" data-testid="button-close-cart"><X /></button></div>
+      {orderSuccess && <div className="order-success" role="status"><Check size={18} />{orderSuccess}</div>}
       {items.length === 0 ? <div className="empty-state" data-testid="empty-cart">Здесь пока тихо.<br /><span style={{ fontSize: 13 }}>Добавьте что-нибудь любимое.</span></div> :
         items.map(({ product, quantity }) => <div className="cart-line" key={product.id} data-testid={`cart-item-${product.id}`}>
           <img src={productImage(product, product.id)} alt={product.name} />
@@ -227,7 +245,17 @@ function CartDrawer({ items, onClose, onQty, onRemove }: {
         </div>)}
       {items.length > 0 && <>
         <div className="cart-total"><span>Итого</span><strong>{money(total)}</strong></div>
-        <p className="checkout-note">Корзина сохранена на этом устройстве. Условия заказа и доставки уточняются.</p>
+        <p className="checkout-note">Сначала проверим заказ вручную. Оплата — после подтверждения.</p>
+        {!checkout ? <button className="primary-button checkout-start" onClick={() => setCheckout(true)}>Оформить заявку <ArrowRight size={15} /></button> : <form className="checkout-form" onSubmit={submitOrder}>
+          <h3>Детали заказа</h3>
+          <label className="form-field">Ваше имя<input required minLength={2} maxLength={120} value={details.customerName} onChange={e => setDetails({ ...details, customerName: e.target.value })} /></label>
+          <label className="form-field">Телефон для связи<input required type="tel" maxLength={40} placeholder="+7 ..." value={details.phone} onChange={e => setDetails({ ...details, phone: e.target.value })} /></label>
+          <label className="form-field">Email (необязательно)<input type="email" maxLength={254} value={details.email} onChange={e => setDetails({ ...details, email: e.target.value })} /></label>
+          <label className="form-field">Адрес или способ получения<input required minLength={5} maxLength={500} placeholder="Город, адрес или удобный способ связи" value={details.address} onChange={e => setDetails({ ...details, address: e.target.value })} /></label>
+          <label className="form-field">Комментарий<textarea maxLength={1000} rows={2} value={details.note} onChange={e => setDetails({ ...details, note: e.target.value })} /></label>
+          {orderError && <p className="form-error" role="alert">{orderError}</p>}
+          <button className="primary-button checkout-start" disabled={sending}>{sending ? 'Отправляем…' : 'Отправить на модерацию'}</button>
+        </form>}
       </>}
     </aside>
   </div>;
@@ -316,7 +344,7 @@ function Catalog() {
       </section>
     </main>
     <footer className="footer"><Link href="/" className="brand">тихо.<small>дом и повседневность</small></Link><div className="footer-note">Алматы · Казахстан<br />Корзина хранится на устройстве</div><span className="mono" style={{ fontSize: 9 }}>© {new Date().getFullYear()} ТИХО</span></footer>
-    {cartOpen && <CartDrawer items={cart} onClose={() => setCartOpen(false)} onQty={changeQty} onRemove={removeItem} />}
+    {cartOpen && <CartDrawer items={cart} onClose={() => setCartOpen(false)} onQty={changeQty} onRemove={removeItem} onOrderSubmitted={() => setCart([])} />}
   </div>;
 }
 
