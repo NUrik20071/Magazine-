@@ -4,6 +4,7 @@ import productsRouter from "./products";
 import ordersRouter from "./orders";
 import storefrontSettingsRouter from "./storefrontSettings";
 import mediaRouter from "./media";
+import mediaResolveRouter from "./mediaResolve";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(productsRouter);
 router.use(ordersRouter);
 router.use(storefrontSettingsRouter);
 router.use(mediaRouter);
+router.use(mediaResolveRouter);
 
 export default router;
