@@ -337,22 +337,26 @@ function Catalog() {
       if (rule.condition === 'cart-has-items') conditionPassed = cart.length > 0;
       if (rule.condition === 'url-contains') conditionPassed = window.location.href.includes(rule.conditionValue || '');
       if (!conditionPassed) continue;
-      const target = Array.from(document.querySelectorAll<HTMLElement>('[data-element-id]')).find((el) => el.dataset.elementId === (rule.targetId || ''));
-      if (rule.action === 'show' && target) target.hidden = false;
-      else if (rule.action === 'hide' && target) target.hidden = true;
-      else if (rule.action === 'toggle' && target) target.hidden = !target.hidden;
-      else if (rule.action === 'animate' && target) {
-        target.dataset.workflowAnimation = rule.value || 'pulse';
-        target.classList.remove('workflow-animate');
-        void target.offsetWidth;
-        target.classList.add('workflow-animate');
-      } else if (rule.action === 'scroll' && target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const targets = Array.from(document.querySelectorAll<HTMLElement>('[data-element-id]')).filter((el) => el.dataset.elementId === (rule.targetId || ''));
+      const target = targets[0];
+      const targetList = rule.targetId === 'product-card' ? targets : targets.slice(0, 1);
+      if (rule.action === 'show') targetList.forEach((el) => { el.hidden = false; });
+      else if (rule.action === 'hide') targetList.forEach((el) => { el.hidden = true; });
+      else if (rule.action === 'toggle') targetList.forEach((el) => { el.hidden = !el.hidden; });
+      else if (rule.action === 'animate') targetList.forEach((el) => {
+        el.dataset.workflowAnimation = rule.value || 'pulse';
+        el.classList.remove('workflow-animate');
+        void el.offsetWidth;
+        el.classList.add('workflow-animate');
+      });
+      else if (rule.action === 'scroll' && target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
       else if (rule.action === 'navigate' && rule.value) window.location.href = rule.value;
       else if (rule.action === 'open-link' && rule.value) window.open(rule.value, '_blank', 'noopener,noreferrer');
-      else if (rule.action === 'play-video' && target) {
-        const video = target.matches('video') ? target as HTMLVideoElement : target.querySelector('video');
+      else if (rule.action === 'play-video') targetList.forEach((el) => {
+        const video = el.matches('video') ? el as HTMLVideoElement : el.querySelector('video');
         if (video) void video.play().catch(() => undefined);
-      } else if (rule.action === 'show-message') setWorkflowNotice(rule.value || rule.name || 'Действие выполнено');
+      });
+      else if (rule.action === 'show-message') setWorkflowNotice(rule.value || rule.name || 'Действие выполнено');
     }
   };
   const handleWorkflowClick = (event: MouseEvent<HTMLDivElement>) => {
@@ -644,12 +648,12 @@ function StorefrontSettingsEditor() {
           ['--site-card-radius' as any]: String(config.theme.cardRadius) + 'px',
           ['--site-animation-duration' as any]: String(config.theme.animationDuration) + 'ms',
         } as any}>
-          <div className="editor-mini-site-head"><strong>{config.content.siteName}</strong><span>{config.content.navCatalogLabel} · {config.content.navAboutLabel}</span><small>{config.content.siteTagline}</small></div>
+          <div className="editor-mini-announcement">{config.content.announcement}</div><div className="editor-mini-site-head"><strong>{config.content.siteName}</strong><span>{config.content.navCatalogLabel} · {config.content.navAboutLabel}</span><small>{config.content.siteTagline}</small></div>
           <div className="editor-mini-hero" style={{ background: config.theme.gradient }}>
             <div><small>{config.content.heroEyebrow}</small><h3 style={{ fontFamily: config.theme.headingFont }}>{config.content.heroTitle.replace(/\n/g, ' ')}</h3><p>{config.content.heroText}</p><span style={{ background: config.theme.accent, color: config.theme.accentText }}>{config.content.heroButtonText}</span></div>
             <div className="editor-mini-product" style={{ background: config.theme.cardBackground, borderRadius: config.theme.cardRadius }}><img src={config.content.heroImage || '/images/orbit-vase.png'} alt="" /><strong>Керамическая ваза</strong><small>12 000 ₸</small></div>
           </div>
-          <div className="editor-mini-ticker">{config.content.ticker1}　•　{config.content.ticker2}　•　{config.content.ticker3}</div><section className="editor-mini-catalog"><small>{config.content.catalogEyebrow}</small><h3>{config.content.catalogTitle.replace(/\n/g, " ")}</h3><div className="editor-mini-cards">{[1,2,3].map(n => <div key={n} style={{ background: config.theme.cardBackground, borderRadius: config.theme.cardRadius }}><img src={n === 1 ? config.content.heroImage || "/images/orbit-vase.png" : n === 2 ? "/images/linen-lamp.png" : "/images/terracotta-tray.png"} alt="" /><span>Пример товара {n}</span><small>12 000 ₸</small></div>)}</div></section><section className="editor-mini-story" style={{ background: config.theme.gradient }}><small>{config.content.storyEyebrow}</small><h3>{config.content.storyTitle.replace(/\n/g, " ")}</h3><p>{config.content.storyText}</p><blockquote>{config.content.storyQuote}</blockquote></section><StorefrontBlocks blocks={config.blocks} /><footer className="editor-mini-footer"><strong>{config.content.siteName}</strong><span>{config.content.footerLocation}</span><span>{config.content.footerNote}</span><small>© {new Date().getFullYear()} {config.content.copyrightLabel}</small></footer>
+          <div className="editor-mini-ticker">{config.content.ticker1}　•　{config.content.ticker2}　•　{config.content.ticker3}</div><section className="editor-mini-catalog"><small>{config.content.catalogEyebrow}</small><h3>{config.content.catalogTitle.replace(/\n/g, " ")}</h3><div className="editor-mini-cards">{[1,2,3].map(n => <div key={n} style={{ background: config.theme.cardBackground, borderRadius: config.theme.cardRadius }}><img src={n === 1 ? config.content.heroImage || "/images/orbit-vase.png" : n === 2 ? "/images/linen-lamp.png" : "/images/terracotta-tray.png"} alt="" /><span>Пример товара {n}</span><small>12 000 ₸</small></div>)}</div></section><StorefrontBlocks blocks={config.blocks} /><section className="editor-mini-story" style={{ background: config.theme.gradient }}><small>{config.content.storyEyebrow}</small><h3>{config.content.storyTitle.replace(/\n/g, " ")}</h3><p>{config.content.storyText}</p><blockquote>{config.content.storyQuote}</blockquote></section><footer className="editor-mini-footer"><strong>{config.content.siteName}</strong><span>{config.content.footerLocation}</span><span>{config.content.footerNote}</span><small>© {new Date().getFullYear()} {config.content.copyrightLabel}</small></footer>
         </div>
       </div>
     </div>
