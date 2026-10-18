@@ -50,6 +50,8 @@ function validConfig(value: unknown): value is Record<string, any> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const config = value as Record<string, any>;
   if (!config.theme || typeof config.theme !== "object" || !config.content || typeof config.content !== "object" || !Array.isArray(config.blocks)) return false;
+  if (config.content.heroImageLink !== undefined && !validUrl(config.content.heroImageLink)) return false;
+  if (config.content.heroImage !== undefined && !validUrl(config.content.heroImage)) return false;
   if (config.blocks.length > 40) return false;
   const allowedTypes = new Set(["text", "image", "video", "audio", "button", "embed"]);
   for (const block of config.blocks) {
