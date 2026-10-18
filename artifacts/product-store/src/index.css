@@ -610,3 +610,37 @@ button { cursor: pointer; }
   .admin-store-switch { padding: 8px; font-size: 10px; }
   .admin-top-actions .account-logout { padding: 8px; }
 }
+
+
+/* Premium micro-interactions: tactile press feedback, reduced-motion support */
+:root { --motion-fast: 140ms; --motion-medium: 240ms; --motion-slow: 420ms; --ease-out: cubic-bezier(.2,.75,.25,1); }
+button, .cta, .quiet-link, .product-card, .product-photo img, .hero-art img, .brand, .icon-button {
+  -webkit-tap-highlight-color: transparent;
+}
+button, .cta, .icon-button, .quick-add, .primary-button, .secondary-button, .quiet-link {
+  transition: transform var(--motion-fast) var(--ease-out), box-shadow var(--motion-medium) var(--ease-out), background-color var(--motion-medium) ease, border-color var(--motion-medium) ease, color var(--motion-medium) ease, opacity var(--motion-fast) ease;
+}
+button:active, .cta:active, .icon-button:active, .quick-add:active, .primary-button:active, .secondary-button:active {
+  transform: scale(.965);
+}
+.product-card { transform: translateZ(0); transition: transform var(--motion-medium) var(--ease-out), box-shadow var(--motion-medium) var(--ease-out); }
+.product-card:active { transform: scale(.985); }
+.product-photo { overflow: hidden; }
+.product-photo img, .hero-art img { transition: transform 650ms var(--ease-out), filter 350ms ease; will-change: transform; }
+.product-card:hover .product-photo img { transform: scale(1.035); }
+.product-card:active .product-photo img { transform: scale(.975); filter: saturate(.92); }
+.quick-add { transform-origin: center; }
+.product-card:hover .quick-add { box-shadow: 0 8px 22px rgba(36,76,67,.16); }
+.product-card:active .quick-add { transform: scale(.92); }
+.product-card-open { touch-action: manipulation; }
+.product-card-open:active .product-photo img { transform: scale(.975); }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 2px solid #557d6f; outline-offset: 3px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .primary-button:hover, .cta:hover { box-shadow: 0 10px 26px rgba(36,76,67,.16); transform: translateY(-1px); }
+  .product-card:hover { box-shadow: 0 14px 34px rgba(39,52,43,.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
