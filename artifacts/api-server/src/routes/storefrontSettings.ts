@@ -39,6 +39,7 @@ function validUrl(value: unknown): boolean {
   if (typeof value !== "string" || value.length > 2000) return false;
   if (!value.trim()) return true;
   if (value.startsWith("/") && !value.startsWith("//")) return true;
+  if (value.startsWith("#")) return true;
   try {
     const parsed = new URL(value);
     return ["https:", "http:", "mailto:", "tel:"].includes(parsed.protocol);
