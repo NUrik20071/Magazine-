@@ -772,6 +772,8 @@ function AdminGate() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState('');
   const [moderatingId, setModeratingId] = useState<number | null>(null);
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [orderDraft, setOrderDraft] = useState<any>(null);
   useEffect(() => {
     if (activeView !== 'orders' || !isLoaded || !isSignedIn) return;
     let cancelled = false;
@@ -783,6 +785,24 @@ function AdminGate() {
       .finally(() => { if (!cancelled) setOrdersLoading(false); });
     return () => { cancelled = true; };
   }, [activeView, getToken, isLoaded, isSignedIn]);
+  function beginEditOrder(order: any) {
+    setEditingOrderId(Number(order.id));
+    setOrderDraft({ customerName: order.customer_name || '', phone: order.customer_phone || '', email: order.customer_email || '', address: order.delivery_address || '', note: order.customer_note || '', items: (Array.isArray(order.items) ? order.items : []).map((item: any) => ({ productId: Number(item.productId), quantity: Number(item.quantity), name: item.name, price: Number(item.price) })) });
+    setOrdersError('');
+  }
+  async function saveOrderEdit() {
+    if (editingOrderId === null || !orderDraft) return;
+    setModeratingId(editingOrderId); setOrdersError('');
+    try {
+      const token = await getToken();
+      const response = await fetch('/api/admin/orders/' + editingOrderId, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: JSON.stringify(orderDraft) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Не удалось сохранить заказ');
+      setOrders(current => current.map(order => Number(order.id) === editingOrderId ? body : order));
+      setEditingOrderId(null); setOrderDraft(null);
+    } catch (error) { setOrdersError(error instanceof Error ? error.message : 'Ошибка сохранения заказа'); }
+    finally { setModeratingId(null); }
+  }
   async function moderateOrder(id: number, status: 'approved' | 'rejected') {
     setModeratingId(id);
     try {
@@ -860,10 +880,23 @@ function AdminGate() {
         <div className="orders-intro"><span className="eyebrow">Ручная проверка</span><p>Подтверждение заказа не означает, что оплата уже получена.</p></div>
         {ordersError && <p className="form-error" role="alert">{ordersError}</p>}
         {ordersLoading ? <div className="skeleton" style={{height:160}} /> : orders.length ? <div className="order-list">{orders.map(order => <article className="order-card" key={order.id}>
-          <div className="order-card-head"><div><span className="order-number">ЗАКАЗ №{order.id}</span><small>{new Date(order.created_at).toLocaleString('ru-RU')}</small></div><span className={'status-pill order-status ' + order.status}>{order.status === 'pending' ? 'На проверке' : order.status === 'approved' ? 'Подтверждён' : 'Отклонён'}</span></div>
+          <div className="order-card-head"><div><span className="order-number">ЗАКАЗ №{order.id}</span><small>{new Date(order.created_at).toLocaleString('ru-RU')}</small></div><div className="order-card-tools"><span className={'status-pill order-status ' + order.status}>{order.status === 'pending' ? 'На проверке' : order.status === 'approved' ? 'Подтверждён' : 'Отклонён'}</span><button className="secondary-button" onClick={() => editingOrderId === Number(order.id) ? (setEditingOrderId(null), setOrderDraft(null)) : beginEditOrder(order)}>{editingOrderId === Number(order.id) ? 'Отмена' : 'Редактировать'}</button></div></div>
           <div className="order-customer"><strong>{order.customer_name}</strong><span>{order.customer_phone}</span>{order.customer_email && <span>{order.customer_email}</span>}<span>{order.delivery_address}</span>{order.customer_note && <p>Комментарий: {order.customer_note}</p>}</div>
           <div className="order-items">{(Array.isArray(order.items) ? order.items : []).map((item: any, index: number) => <div className="order-item" key={item.productId || index}><span>{item.name} × {item.quantity}</span><strong>{money(Number(item.price) * Number(item.quantity))}</strong></div>)}</div>
           <div className="order-total"><span>Итого</span><strong>{money(Number(order.total_amount))}</strong></div>
+          {editingOrderId === Number(order.id) && orderDraft && <div className="order-edit-form">
+            <h4>Редактирование заказа №{order.id}</h4>
+            <div className="order-edit-fields">
+              <label className="form-field">Имя клиента<input value={orderDraft.customerName} onChange={e => setOrderDraft((d: any) => ({...d, customerName:e.target.value}))} /></label>
+              <label className="form-field">Телефон<input value={orderDraft.phone} onChange={e => setOrderDraft((d: any) => ({...d, phone:e.target.value}))} /></label>
+              <label className="form-field">Email<input value={orderDraft.email} onChange={e => setOrderDraft((d: any) => ({...d, email:e.target.value}))} /></label>
+              <label className="form-field">Адрес доставки<input value={orderDraft.address} onChange={e => setOrderDraft((d: any) => ({...d, address:e.target.value}))} /></label>
+              <label className="form-field order-edit-note">Комментарий<textarea rows={2} value={orderDraft.note} onChange={e => setOrderDraft((d: any) => ({...d, note:e.target.value}))} /></label>
+            </div>
+            <h5>Количество товаров (цены заказа сохраняются)</h5>
+            {orderDraft.items.map((item: any, itemIndex: number) => <label className="order-edit-quantity" key={item.productId}><span>{item.name} · {money(item.price)}</span><input type="number" min="1" max="99" value={item.quantity} onChange={e => setOrderDraft((d: any) => ({...d, items:d.items.map((current: any, i: number) => i === itemIndex ? {...current, quantity:Math.max(1,Math.min(99,Number(e.target.value)||1))} : current)}))} /></label>)}
+            <button className="primary-button" disabled={moderatingId === Number(order.id)} onClick={() => void saveOrderEdit()}>{moderatingId === Number(order.id) ? 'Сохраняем…' : 'Сохранить заказ'}</button>
+          </div>}
           {order.status === 'pending' && <div className="order-actions"><button className="primary-button" disabled={moderatingId === Number(order.id)} onClick={() => void moderateOrder(Number(order.id), 'approved')}><Check size={14} /> Подтвердить</button><button className="secondary-button" disabled={moderatingId === Number(order.id)} onClick={() => void moderateOrder(Number(order.id), 'rejected')}><Ban size={14} /> Отклонить</button></div>}
         </article>)}</div> : <div className="empty-state">Пока нет заявок.<br/><span style={{fontSize:13}}>Здесь появятся новые заказы.</span></div>}
       </section> : activeView === 'overview' ? <>
