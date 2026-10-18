@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { ClerkProvider, SignIn, SignUp, useAuth, useClerk } from '@clerk/react';
+import { setAuthTokenGetter } from '@workspace/api-client-react';
 import { ruRU } from '@clerk/localizations';
 import {
   getGetAdminOverviewQueryKey,
@@ -124,11 +125,18 @@ const productImage = (product: Product, index: number) =>
 const money = (value: number) => `${new Intl.NumberFormat('ru-RU').format(value)} ₸`;
 
 function AdminHeaderLink() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const [tokenReady, setTokenReady] = useState(false);
+  useEffect(() => {
+    if (!isLoaded) return;
+    setAuthTokenGetter(() => getToken());
+    setTokenReady(true);
+    return () => setAuthTokenGetter(null);
+  }, [getToken, isLoaded]);
   const overview = useGetAdminOverview({
     query: {
       queryKey: getGetAdminOverviewQueryKey(),
-      enabled: isLoaded && isSignedIn === true,
+      enabled: isLoaded && isSignedIn === true && tokenReady,
       retry: false,
       staleTime: 30_000,
     },
@@ -324,8 +332,20 @@ function ProductEditor({ product, onClose, onSave, busy }: { product: Product | 
 }
 
 function AdminGate() {
-  const overviewQuery = useGetAdminOverview();
-  const productsQuery = useListAdminProducts();
+  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const [tokenReady, setTokenReady] = useState(false);
+  useEffect(() => {
+    if (!isLoaded) return;
+    setAuthTokenGetter(() => getToken());
+    setTokenReady(true);
+    return () => setAuthTokenGetter(null);
+  }, [getToken, isLoaded]);
+  const overviewQuery = useGetAdminOverview({
+    query: { queryKey: getGetAdminOverviewQueryKey(), enabled: isLoaded && isSignedIn === true && tokenReady, retry: false },
+  });
+  const productsQuery = useListAdminProducts({
+    query: { queryKey: getListAdminProductsQueryKey(), enabled: isLoaded && isSignedIn === true && tokenReady, retry: false },
+  });
   const [activeView, setActiveView] = useState<'overview' | 'products'>('overview');
   const [editor, setEditor] = useState<Product | null | undefined>(undefined);
   const [filter, setFilter] = useState('');
@@ -342,7 +362,7 @@ function AdminGate() {
     setEditor(undefined);
     setNotice('Изменения сохранены');
   }
-  const isLoading = overviewQuery.isLoading || productsQuery.isLoading;
+  const isLoading = !isLoaded || (isSignedIn === true && (!tokenReady || overviewQuery.isLoading || productsQuery.isLoading));
   const isError = overviewQuery.isError || productsQuery.isError;
   const overview = overviewQuery.data;
   const adminProducts = productsQuery.data ?? [];
