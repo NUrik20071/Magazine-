@@ -348,7 +348,7 @@ function Catalog() {
         </div>
         <div className="hero-art">
           <span className="hero-index">ПРЕДМЕТЫ С ХАРАКТЕРОМ · № 01</span>
-          <img src={featured?.imageUrl || '/images/orbit-vase.png'} alt={featured?.name || 'Керамическая ваза в солнечном свете'} />
+          <a className="hero-image-link" href={storefront.content.heroImageLink || '#catalog'}><img src={storefront.content.heroImage || featured?.imageUrl || '/images/orbit-vase.png'} alt={featured?.name || 'Керамическая ваза в солнечном свете'} /></a>
           <span className="hero-note">Найдено и выбрано в Казахстане</span>
         </div>
       </section>
@@ -372,7 +372,8 @@ function Catalog() {
             products.length ? <div className="product-grid">{products.map((product, index) => <ProductCard key={product.id} product={product} index={index} onAdd={addProduct} onOpen={setSelectedProduct} />)}</div> :
               <div className="empty-state" data-testid="empty-products">Коллекция пока собирается.<br /><span style={{ fontSize: 13 }}>Загляните чуть позже — здесь появятся новые находки.</span></div>}
       </section>
-      <StorefrontBlocks blocks={storefront.blocks} />\n      <section className="story-band" id="about">
+      <StorefrontBlocks blocks={storefront.blocks} />
+      <section className="story-band" id="about">
         <div className="story-inner">
           <div><span className="eyebrow">Небольшое объяснение</span><h2>{storefront.content.storyTitle.split("\n").map((line, i) => <React.Fragment key={i}>{i > 0 && <br />}{line}</React.Fragment>)}</h2><p>{storefront.content.storyText}</p><a className="quiet-link" href="#catalog" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 9, fontSize: 12 }}>Вернуться к вещам <ArrowRight size={14} /></a></div>
           <div className="story-mark">«Хорошая вещь не заполняет пространство — она делает его вашим»</div>
