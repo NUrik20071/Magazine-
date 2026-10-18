@@ -565,6 +565,7 @@ function Catalog() {
               <div className="empty-state" data-testid="empty-products">Коллекция пока собирается.<br /><span style={{ fontSize: 13 }}>Загляните чуть позже — здесь появятся новые находки.</span></div>}
       </section>
       <div data-site-section="custom" data-element-id="custom-section" style={{ display: storefront.sections.custom ? undefined : 'none', order: Math.max(0, storefront.sectionOrder.indexOf('custom')) }}><StorefrontBlocks blocks={storefront.blocks} /></div>
+      {storefront.customSections.map((section) => <section className="builder-custom-section" key={section.id} id={section.id} data-site-section={section.id} data-element-id={section.id} data-animation={section.animation} style={{ display: section.enabled ? undefined : 'none', order: Math.max(0, storefront.sectionOrder.indexOf(section.id)), background: section.background || 'transparent', ['--block-animation-duration' as any]: '700ms' }}><div className="builder-custom-section-head"><h2>{section.title}</h2></div><StorefrontBlocks blocks={section.blocks || []} /></section>)}
       <section className="story-band" id="about" data-site-section="story" data-element-id="about" style={{ display: storefront.sections.story ? undefined : 'none', order: Math.max(0, storefront.sectionOrder.indexOf('story')) }}>
         <div className="story-inner">
           <div><span className="eyebrow">{storefront.content.storyEyebrow}</span><h2>{storefront.content.storyTitle.split("\n").map((line, i) => <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>)}</h2><p>{storefront.content.storyText}</p><a className="quiet-link" href={normalizeSourceUrl(storefront.content.storyLinkUrl || '#catalog')} data-element-id="story-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 9, fontSize: 12 }}>{storefront.content.storyLinkText} <ArrowRight size={14} /></a></div>
@@ -706,9 +707,17 @@ function StorefrontSettingsEditor() {
     } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения'); }
     finally { setSaving(false); }
   }
-  function addBlock(type: StorefrontBlock['type']) {
-    setConfig((c) => ({ ...c, blocks: [...c.blocks, { id: 'block-' + Date.now(), type, title: type === 'text' ? 'Новый блок' : type === 'map' ? 'Карта 2ГИС' : '', text: '', label: type === 'button' ? 'Открыть ссылку' : '', url: '', mediaUrl: '', background: '#f5f1e8', color: '#244c43', width: '100%', animation: 'fade', columns: 12, height: 'auto', fontSize: '16px', titleSize: 'inherit', padding: '22px', radius: 0, textAlign: 'left', objectFit: 'contain', targetBlank: false }] }));
+  function makeBlock(type: StorefrontBlock['type']): StorefrontBlock { return { id: 'block-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), type, title: type === 'text' ? 'Новый блок' : type === 'map' ? 'Карта 2ГИС' : type === 'carousel' ? 'Карусель медиа' : '', text: '', label: type === 'button' ? 'Открыть ссылку' : '', url: '', mediaUrl: '', background: 'transparent', color: '#244c43', width: '100%', animation: 'reveal', animationDuration: 700, columns: 12, height: 'auto', fontSize: '16px', titleSize: 'inherit', padding: '22px', radius: 0, outline: '', rotation: 0, textAlign: 'left', objectFit: 'cover', targetBlank: false }; }
+  function addBlock(type: StorefrontBlock['type']) { setConfig((c) => ({ ...c, blocks: [...c.blocks, makeBlock(type)] })); }
+  function addCustomSection() {
+    const id = 'custom-' + Date.now().toString(36);
+    const section: CustomSection = { id, title: 'Новая секция', enabled: true, background: 'transparent', animation: 'reveal', blocks: [{ ...makeBlock('text'), id: id + '-text', title: 'Заголовок секции', text: 'Измените содержимое этого блока.' }] };
+    setConfig((c) => ({ ...c, customSections: [...c.customSections, section], sectionOrder: [...c.sectionOrder, id] }));
   }
+  function updateCustomSection(id: string, patch: Partial<CustomSection>) { setConfig((c) => ({ ...c, customSections: c.customSections.map((section) => section.id === id ? { ...section, ...patch } : section) })); }
+  function removeCustomSection(id: string) { setConfig((c) => ({ ...c, customSections: c.customSections.filter((section) => section.id !== id), sectionOrder: c.sectionOrder.filter((key) => key !== id) })); }
+  function moveCustomSectionBlock(sectionId: string, index: number, direction: number) { setConfig((c) => ({ ...c, customSections: c.customSections.map((section) => { if (section.id !== sectionId) return section; const blocks = [...section.blocks]; const target = index + direction; if (target < 0 || target >= blocks.length) return section; [blocks[index], blocks[target]] = [blocks[target], blocks[index]]; return { ...section, blocks }; }) })); }
+  function updateCustomSectionBlock(sectionId: string, blockId: string, key: keyof StorefrontBlock, value: string | number | boolean) { setConfig((c) => ({ ...c, customSections: c.customSections.map((section) => section.id === sectionId ? { ...section, blocks: section.blocks.map((block) => block.id === blockId ? { ...block, [key]: value } : block) } : section) })); }
   function moveBlock(index: number, direction: number) {
     setConfig((c) => { const blocks = [...c.blocks]; const target = index + direction; if (target < 0 || target >= blocks.length) return c; const temp = blocks[index]; blocks[index] = blocks[target]; blocks[target] = temp; return { ...c, blocks }; });
   }
