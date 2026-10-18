@@ -138,7 +138,7 @@ router.get("/storefront/settings", async (_req, res): Promise<void> => {
   await ensureSettingsTable();
   const { rows } = await pool.query("SELECT config FROM storefront_settings WHERE id = 1");
   const config = rows[0]?.config ?? defaults;
-  const { adminTheme: _privateAdminTheme, ...publishedConfig } = config;
+  const { adminTheme: _privateAdminTheme, customCode: _privateCustomCode, ...publishedConfig } = config;
   res.setHeader("Cache-Control", "public, max-age=30, stale-while-revalidate=60");
   res.json(publishedConfig);
 });
