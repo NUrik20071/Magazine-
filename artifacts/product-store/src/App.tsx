@@ -126,11 +126,17 @@ const money = (value: number) => `${new Intl.NumberFormat('ru-RU').format(value)
 
 function AdminHeaderLink() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
-  setAuthTokenGetter(() => getToken());
+  const [tokenReady, setTokenReady] = useState(false);
+  useEffect(() => {
+    if (!isLoaded) return;
+    setAuthTokenGetter(() => getToken());
+    setTokenReady(true);
+    return () => setAuthTokenGetter(null);
+  }, [getToken, isLoaded]);
   const overview = useGetAdminOverview({
     query: {
       queryKey: getGetAdminOverviewQueryKey(),
-      enabled: isLoaded && isSignedIn === true,
+      enabled: isLoaded && isSignedIn === true && tokenReady,
       retry: false,
       staleTime: 30_000,
     },
@@ -327,12 +333,18 @@ function ProductEditor({ product, onClose, onSave, busy }: { product: Product | 
 
 function AdminGate() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
-  setAuthTokenGetter(() => getToken());
+  const [tokenReady, setTokenReady] = useState(false);
+  useEffect(() => {
+    if (!isLoaded) return;
+    setAuthTokenGetter(() => getToken());
+    setTokenReady(true);
+    return () => setAuthTokenGetter(null);
+  }, [getToken, isLoaded]);
   const overviewQuery = useGetAdminOverview({
-    query: { enabled: isLoaded && isSignedIn === true, retry: false },
+    query: { enabled: isLoaded && isSignedIn === true && tokenReady, retry: false },
   });
   const productsQuery = useListAdminProducts({
-    query: { enabled: isLoaded && isSignedIn === true, retry: false },
+    query: { enabled: isLoaded && isSignedIn === true && tokenReady, retry: false },
   });
   const [activeView, setActiveView] = useState<'overview' | 'products'>('overview');
   const [editor, setEditor] = useState<Product | null | undefined>(undefined);
@@ -350,7 +362,7 @@ function AdminGate() {
     setEditor(undefined);
     setNotice('Изменения сохранены');
   }
-  const isLoading = !isLoaded || (isSignedIn === true && (overviewQuery.isLoading || productsQuery.isLoading));
+  const isLoading = !isLoaded || (isSignedIn === true && (!tokenReady || overviewQuery.isLoading || productsQuery.isLoading));
   const isError = overviewQuery.isError || productsQuery.isError;
   const overview = overviewQuery.data;
   const adminProducts = productsQuery.data ?? [];
