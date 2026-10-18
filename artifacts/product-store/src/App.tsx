@@ -481,6 +481,7 @@ function AdminGate() {
       <div><div className="admin-label">Рабочее пространство</div><nav className="admin-nav">
         <button className={activeView === 'overview' ? 'selected' : ''} onClick={() => setActiveView('overview')} data-testid="button-admin-overview"><Leaf size={16} />Обзор</button>
         <button className={activeView === 'products' ? 'selected' : ''} onClick={() => setActiveView('products')} data-testid="button-admin-products"><Package size={16} />Предметы</button>
+        <button className={activeView === 'orders' ? 'selected' : ''} onClick={() => setActiveView('orders')} data-testid="button-admin-orders"><ClipboardList size={16} />Заказы</button>
       </nav></div>
       <div><div className="admin-label">Публичный магазин</div><Link className="quiet-link" style={{ color: '#d7dfd3', fontSize: 12, padding: 12, display: 'flex', alignItems: 'center', gap: 9 }} href="/" data-testid="link-view-store">Открыть витрину <ArrowRight size={13} /></Link></div>
     </aside>
