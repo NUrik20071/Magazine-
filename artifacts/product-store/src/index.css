@@ -954,3 +954,58 @@ body { background: var(--site-background); color: var(--site-text); font-family:
   .code-preview iframe { min-height:280px; }
   .code-studio-actions > button { flex:1; }
 }
+
+/* Immersive motion presets inspired by scroll-led, interactive studio sites */
+.builder-custom-section { position:relative; width:100%; overflow:hidden; padding:clamp(28px,5vw,76px) 0; }
+.builder-custom-section-head { max-width:1400px; margin:0 auto; padding:0 5.4vw; }
+.builder-custom-section-head h2 { margin:0; font-size:clamp(28px,5vw,72px); letter-spacing:-.055em; line-height:.98; }
+.builder-section-manager { display:grid; gap:16px; }
+.builder-section-card { border:1px solid #d8d0c2; border-radius:var(--admin-radius,8px); padding:16px; background:var(--admin-surface,#fffdf8); color:var(--admin-text,#244c43); }
+.builder-section-nested { margin-top:14px; padding-top:14px; border-top:1px solid #ded6c9; display:grid; gap:12px; }
+.builder-nested-block { padding:12px; border:1px dashed #c7bdae; border-radius:8px; }
+.custom-carousel { display:flex; width:100%; gap:clamp(10px,2vw,24px); overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; overscroll-behavior-x:contain; padding:4px 2px 18px; scrollbar-width:thin; }
+.custom-carousel-slide { flex:0 0 min(76%,640px); min-width:0; margin:0; scroll-snap-align:center; position:relative; overflow:hidden; border-radius:inherit; }
+.custom-carousel-slide img,.custom-carousel-slide video { display:block; width:100%; aspect-ratio:16/10; object-fit:cover; background:#151515; }
+.custom-carousel-slide figcaption { position:absolute; right:12px; bottom:12px; padding:5px 8px; background:#101010a8; color:white; font:10px/1.2 monospace; letter-spacing:.08em; }
+.custom-block[data-animation="reveal"],[data-animation="reveal"].builder-custom-section,
+.custom-block[data-animation="blur"],[data-animation="blur"].builder-custom-section,
+.custom-block[data-animation="rotate"],[data-animation="rotate"].builder-custom-section,
+.custom-block[data-animation="parallax"],[data-animation="parallax"].builder-custom-section { transition:opacity var(--block-animation-duration,700ms) cubic-bezier(.16,1,.3,1),transform var(--block-animation-duration,700ms) cubic-bezier(.16,1,.3,1),filter var(--block-animation-duration,700ms) cubic-bezier(.16,1,.3,1); }
+.motion-pending { opacity:0; }
+.motion-pending[data-animation="reveal"] { transform:translate3d(0,42px,0); }
+.motion-pending[data-animation="blur"] { transform:translate3d(0,20px,0) scale(.985); filter:blur(12px); }
+.motion-pending[data-animation="rotate"] { transform:perspective(900px) rotateX(9deg) translateY(28px); transform-origin:50% 0%; }
+.motion-pending[data-animation="parallax"] { transform:translate3d(0,56px,0) scale(.985); }
+.motion-in { opacity:1 !important; transform:none !important; filter:none !important; }
+.custom-block[data-animation="magnetic"] { transition:transform var(--block-animation-duration,400ms) cubic-bezier(.16,1,.3,1),box-shadow .35s ease; }
+.custom-block[data-animation="magnetic"]:hover { transform:translateY(-5px) scale(1.012); box-shadow:0 22px 60px #0002; }
+.custom-block[data-animation="tilt"] { transform-style:preserve-3d; transition:transform var(--block-animation-duration,500ms) cubic-bezier(.16,1,.3,1),box-shadow .4s ease; }
+.custom-block[data-animation="tilt"]:hover { transform:perspective(900px) rotateX(3deg) rotateY(-3deg) translateY(-4px); box-shadow:0 24px 60px #0002; }
+.custom-block[data-animation="rotate"] { transform-style:preserve-3d; }
+.custom-block[data-animation="reveal"],.custom-block[data-animation="blur"],.custom-block[data-animation="parallax"],.custom-block[data-animation="rotate"] { will-change:transform,opacity; }
+@media (prefers-reduced-motion:reduce) {
+  .motion-pending,.motion-in,.custom-block[data-animation],.builder-custom-section { animation:none!important; transition:none!important; transform:none!important; filter:none!important; opacity:1!important; }
+}
+@media (max-width:650px) {
+  .builder-custom-section { padding:26px 0; }
+  .builder-custom-section-head { padding:0 16px; }
+  .custom-carousel-slide { flex-basis:88%; }
+  .builder-section-card { padding:11px; }
+}
+
+.hero[data-animation],.story-band[data-animation] { transition:opacity var(--site-animation-duration,700ms) cubic-bezier(.16,1,.3,1),transform var(--site-animation-duration,700ms) cubic-bezier(.16,1,.3,1),filter var(--site-animation-duration,700ms) cubic-bezier(.16,1,.3,1); }
+.hero[data-animation="tilt"]:hover,.story-band[data-animation="tilt"]:hover { transform:perspective(1000px) rotateX(2deg) rotateY(-2deg); }
+:root[data-site-animation="magnetic"] .product-card { transition:transform var(--site-animation-duration,450ms) cubic-bezier(.16,1,.3,1),box-shadow .4s ease; }
+:root[data-site-animation="magnetic"] .product-card:hover { transform:translateY(-6px) scale(1.012); box-shadow:0 24px 60px #0002; }
+:root[data-site-animation="tilt"] .product-card { transition:transform var(--site-animation-duration,450ms) cubic-bezier(.16,1,.3,1); transform-style:preserve-3d; }
+:root[data-site-animation="tilt"] .product-card:hover { transform:perspective(900px) rotateX(3deg) rotateY(-3deg) translateY(-4px); }
+:root[data-site-animation="reveal"] .product-card { animation:storefront-fade-in var(--site-animation-duration,700ms) cubic-bezier(.16,1,.3,1) both; }
+:root[data-site-animation="parallax"] .hero-art { transform:translateY(-1.2vh); transition:transform 800ms cubic-bezier(.16,1,.3,1); }
+
+.site-background-media { position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; opacity:.36; }
+.site-background-media img,.site-background-media video { width:100%; height:100%; object-fit:cover; display:block; }
+.shop-shell > :not(.site-background-media) { position:relative; z-index:1; }
+.editor-live-preview-store { position:relative; overflow:hidden; }
+.editor-mini-background-media { position:absolute; inset:0; overflow:hidden; opacity:.25; pointer-events:none; z-index:0; }
+.editor-mini-background-media img,.editor-mini-background-media video { width:100%; height:100%; object-fit:cover; }
+.editor-live-preview-store > :not(.editor-mini-background-media) { position:relative; z-index:1; }
