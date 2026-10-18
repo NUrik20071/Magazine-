@@ -5,9 +5,10 @@ import { requireAdmin } from "../middlewares/adminAuth";
 const router: IRouter = Router();
 
 const defaults = {
+  customSections: [] as Array<Record<string, unknown>>,
   customCode: { html: '', css: '', js: '' },
   theme: {
-    background: "#f5f1e8", text: "#244c43", accent: "#244c43", accentText: "#fffaf1",
+    background: "#f5f1e8", backgroundMediaUrl: "", backgroundMediaType: "image", text: "#244c43", accent: "#244c43", accentText: "#fffaf1",
     cardBackground: "#fffdf7", gradient: "linear-gradient(135deg, #f5f1e8 0%, #e5ded0 100%)",
     font: "DM Sans", headingFont: "Cormorant Garamond", heroLayout: "split", cardRadius: 8, cardColumns: 3,
     imageRatio: "4 / 5", animation: "lift", animationDuration: 240, colorAnimation: false,
@@ -67,15 +68,27 @@ function validConfig(value: unknown): value is Record<string, any> {
     if (!config.sections || typeof config.sections !== "object") return false;
     for (const key of ["header", "hero", "ticker", "catalog", "custom", "story", "footer"]) if (typeof config.sections[key] !== "boolean") return false;
   }
-  if (config.sectionOrder !== undefined && (!Array.isArray(config.sectionOrder) || config.sectionOrder.length > 5 || config.sectionOrder.some((key: unknown) => !["hero","ticker","catalog","custom","story"].includes(String(key))) || new Set(config.sectionOrder).size !== config.sectionOrder.length)) return false;
+  if (config.sectionOrder !== undefined && (!Array.isArray(config.sectionOrder) || config.sectionOrder.length > 30 || config.sectionOrder.some((key: unknown) => !["hero","ticker","catalog","custom","story"].includes(String(key)) && !/^custom-[a-zA-Z0-9_-]{1,70}$/.test(String(key))) || new Set(config.sectionOrder).size !== config.sectionOrder.length)) return false;
+  if (config.customSections !== undefined) {
+    if (!Array.isArray(config.customSections) || config.customSections.length > 25) return false;
+    const sectionIds = new Set<string>();
+    for (const section of config.customSections) {
+      if (!section || typeof section !== "object" || typeof section.id !== "string" || !/^custom-[a-zA-Z0-9_-]{1,70}$/.test(section.id) || sectionIds.has(section.id)) return false;
+      sectionIds.add(section.id);
+      if (typeof section.title !== "string" || section.title.length > 200 || typeof section.enabled !== "boolean" || typeof section.background !== "string" || section.background.length > 500 || typeof section.animation !== "string" || !["fade","lift","glow","float","none","reveal","blur","rotate","parallax"].includes(section.animation) || !Array.isArray(section.blocks) || section.blocks.length > 40) return false;
+    }
+    if (config.sectionOrder && config.sectionOrder.some((key: string) => key.startsWith("custom-") && !sectionIds.has(key))) return false;
+  }
   if (config.content.heroImageLink !== undefined && !validUrl(config.content.heroImageLink)) return false;
   if (config.content.heroImage !== undefined && !validUrl(config.content.heroImage)) return false;
   for (const key of ["heroButtonUrl", "storyLinkUrl"]) if (config.content[key] !== undefined && !validUrl(config.content[key])) return false;
   for (const key of Object.keys(config.content)) if (typeof config.content[key] !== "string" || config.content[key].length > 4000) return false;
   if (config.blocks.length > 40 || !Array.isArray(config.workflows) || config.workflows.length > 50) return false;
   if (config.theme.heroLayout !== undefined && !["split", "image-left", "centered"].includes(config.theme.heroLayout)) return false;
-  const allowedTypes = new Set(["text", "image", "video", "audio", "button", "embed", "map"]);
-  const allowedAnimations = new Set(["fade", "lift", "glow", "float", "none"]);
+  if (config.theme.backgroundMediaUrl !== undefined && !validUrl(config.theme.backgroundMediaUrl)) return false;
+  if (config.theme.backgroundMediaType !== undefined && !["image", "video"].includes(config.theme.backgroundMediaType)) return false;
+  const allowedTypes = new Set(["text", "image", "video", "audio", "button", "embed", "map", "carousel"]);
+  const allowedAnimations = new Set(["fade", "lift", "glow", "float", "none", "reveal", "blur", "rotate", "parallax", "magnetic", "tilt"]);
   const allowedTriggers = new Set(["page-load", "click", "swipe-left", "swipe-right"]);
   const allowedConditions = new Set(["always", "mobile", "desktop", "cart-has-items", "url-contains"]);
   const allowedActions = new Set(["show", "hide", "toggle", "animate", "scroll", "navigate", "open-link", "play-video", "show-message"]);
@@ -94,12 +107,28 @@ function validConfig(value: unknown): value is Record<string, any> {
     for (const key of ["url", "mediaUrl"]) if (block[key] !== undefined && !validUrl(block[key])) return false;
     if (block.columns !== undefined && (!Number.isInteger(block.columns) || block.columns < 1 || block.columns > 12)) return false;
     if (block.radius !== undefined && (!Number.isInteger(block.radius) || block.radius < 0 || block.radius > 48)) return false;
+    if (block.rotation !== undefined && (!Number.isFinite(block.rotation) || block.rotation < -180 || block.rotation > 180)) return false;
+    if (block.animationDuration !== undefined && (!Number.isFinite(block.animationDuration) || block.animationDuration < 0 || block.animationDuration > 10000)) return false;
+    if (block.outline !== undefined && (typeof block.outline !== "string" || block.outline.length > 200)) return false;
+    if (block.inlineStyle !== undefined && (typeof block.inlineStyle !== "string" || block.inlineStyle.length > 2000)) return false;
     if (block.animation !== undefined && (typeof block.animation !== "string" || !allowedAnimations.has(block.animation))) return false;
     if (block.textAlign !== undefined && !["left", "center", "right"].includes(block.textAlign)) return false;
     if (block.objectFit !== undefined && !["cover", "contain"].includes(block.objectFit)) return false;
     if (block.targetBlank !== undefined && typeof block.targetBlank !== "boolean") return false;
-    for (const key of ["title", "titleSize", "text", "label", "url", "mediaUrl", "background", "color", "width", "height", "fontSize", "padding", "textAlign", "objectFit", "animation"]) {
+    for (const key of ["title", "titleSize", "text", "label", "url", "mediaUrl", "background", "color", "width", "height", "fontSize", "padding", "textAlign", "objectFit", "animation", "outline", "inlineStyle"]) {
       if (block[key] !== undefined && (typeof block[key] !== "string" || block[key].length > 4000)) return false;
+    }
+  }
+  for (const section of config.customSections || []) {
+    for (const block of section.blocks || []) {
+      if (!block || typeof block !== "object" || !allowedTypes.has(block.type) || typeof block.id !== "string" || block.id.length > 80) return false;
+      for (const key of ["url", "mediaUrl"]) if (block[key] !== undefined && !validUrl(block[key])) return false;
+      if (block.animation !== undefined && !allowedAnimations.has(block.animation)) return false;
+      if (block.rotation !== undefined && (!Number.isFinite(block.rotation) || block.rotation < -180 || block.rotation > 180)) return false;
+      if (block.animationDuration !== undefined && (!Number.isFinite(block.animationDuration) || block.animationDuration < 0 || block.animationDuration > 10000)) return false;
+      for (const key of ["title", "text", "label", "url", "mediaUrl", "background", "color", "width", "height", "fontSize", "titleSize", "padding", "outline"]) {
+        if (block[key] !== undefined && (typeof block[key] !== "string" || block[key].length > 4000)) return false;
+      }
     }
   }
   return true;
@@ -109,7 +138,7 @@ router.get("/storefront/settings", async (_req, res): Promise<void> => {
   await ensureSettingsTable();
   const { rows } = await pool.query("SELECT config FROM storefront_settings WHERE id = 1");
   const config = rows[0]?.config ?? defaults;
-  const { adminTheme: _privateAdminTheme, ...publishedConfig } = config;
+  const { adminTheme: _privateAdminTheme, customCode: _privateCustomCode, ...publishedConfig } = config;
   res.setHeader("Cache-Control", "public, max-age=30, stale-while-revalidate=60");
   res.json(publishedConfig);
 });
