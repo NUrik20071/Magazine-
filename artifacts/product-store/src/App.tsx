@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { ClerkProvider, SignIn, SignUp, useAuth, useClerk } from '@clerk/react';
+import { publishableKeyFromHost } from '@clerk/react/internal';
 import { ruRU } from '@clerk/localizations';
 import { shadcn } from '@clerk/themes';
 import {
@@ -30,7 +31,7 @@ import './index.css';
 
 const queryClient = new QueryClient();
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
-const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.trim();
+const clerkPubKey = publishableKeyFromHost(window.location.hostname, import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 if (!clerkPubKey) throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env file');
 
@@ -463,8 +464,6 @@ function ClerkRoutes() {
     appearance={clerkAppearance}
     signInUrl={`${basePath}/sign-in`}
     signUpUrl={`${basePath}/sign-up`}
-    signInFallbackRedirectUrl={`${basePath}/admin`}
-    signUpFallbackRedirectUrl={`${basePath}/admin`}
     localization={{
       ...ruRU,
       signIn: {
