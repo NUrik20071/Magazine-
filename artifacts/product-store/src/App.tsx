@@ -601,6 +601,47 @@ function ProductEditor({ product, onClose, onSave, busy, onUploadMedia }: { prod
 }
 
 
+function AiCodeAssistant({ config, onApply, getToken, setNotice, setError }: {
+  config: StorefrontConfig;
+  onApply: (code: StorefrontConfig['customCode']) => void;
+  getToken: () => Promise<string | null>;
+  setNotice: (message: string) => void;
+  setError: (message: string) => void;
+}) {
+  const [endpoint, setEndpoint] = useState('https://api.openai.com/v1/chat/completions');
+  const [model, setModel] = useState('gpt-4o-mini');
+  const [apiKey, setApiKey] = useState('');
+  const [prompt, setPrompt] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function generate() {
+    if (!apiKey.trim() || !prompt.trim()) { setError('Вставь API-ключ и напиши, что нужно изменить.'); return; }
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const token = await getToken();
+      const response = await fetch('/api/admin/ai/code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+        body: JSON.stringify({ apiKey, endpoint, model, prompt, currentCode: config.customCode }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'AI не смог изменить код');
+      onApply(body.customCode);
+      setNotice('AI подготовил код. Проверь HTML/CSS/JS в предпросмотре и нажми «Сохранить и опубликовать». Ключ не сохраняется.');
+    } catch (error) { setError(error instanceof Error ? error.message : 'Ошибка AI API'); }
+    finally { setBusy(false); }
+  }
+  return <div className="ai-code-form">
+    <div className="editor-block-fields">
+      <label className="form-field">API endpoint<input value={endpoint} onChange={e => setEndpoint(e.target.value)} placeholder="https://api.openai.com/v1/chat/completions" /></label>
+      <label className="form-field">Модель<input value={model} onChange={e => setModel(e.target.value)} placeholder="gpt-4o-mini" /></label>
+      <label className="form-field">API-ключ (только на этот запрос)<input type="password" autoComplete="off" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-..." /></label>
+    </div>
+    <label className="form-field">Что нужно сделать? <textarea rows={4} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Например: сделай видео-фон на первом экране, добавь адаптивную секцию с карточками и плавное появление." /></label>
+    <div className="code-studio-actions"><button type="button" className="primary-button" onClick={() => void generate()} disabled={busy}>{busy ? 'AI пишет код…' : 'Сгенерировать / изменить код'}</button><button type="button" className="secondary-button" onClick={() => setApiKey('')}>Очистить API-ключ</button></div>
+    <small className="editor-help">Ключ не записывается в базу и не попадает в опубликованный сайт. Код после генерации нужно проверить: AI может ошибаться.</small>
+  </div>;
+}
+
 function StorefrontSettingsEditor() {
   const { getToken } = useAuth();
   const [config, setConfig] = useState<StorefrontConfig>(defaultStorefront);
