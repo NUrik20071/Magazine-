@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { ClerkProvider, SignIn, SignUp, useAuth, useClerk } from '@clerk/react';
+import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from '@clerk/react';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
 import { ruRU } from '@clerk/localizations';
 import {
@@ -18,8 +18,8 @@ import {
 } from '@workspace/api-client-react';
 import type { Product } from '@workspace/api-client-react';
 import {
-  ArrowDownRight, ArrowRight, Leaf, Minus, Package, Pencil,
-  Plus, Search, ShoppingBag, Trash2, X,
+  ArrowDownRight, ArrowRight, Leaf, LogOut, Minus, Package, Pencil,
+  Plus, Search, ShoppingBag, Trash2, UserRound, X,
 } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -146,6 +146,21 @@ function AdminHeaderLink() {
 }
 
 function ShopHeader({ count, onCart }: { count: number; onCart: () => void }) {
+  const { isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const [signingOut, setSigningOut] = useState(false);
+  const displayName = user?.fullName || user?.firstName || user?.primaryEmailAddress?.emailAddress || 'Мой аккаунт';
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await signOut({ redirectUrl: `${basePath}/` || '/' });
+    } finally {
+      setSigningOut(false);
+    }
+  }
+
   return <>
     <div className="announcement">Доставка по Казахстану · бесплатно от 35 000 ₸</div>
     <header className="header">
@@ -154,7 +169,15 @@ function ShopHeader({ count, onCart }: { count: number; onCart: () => void }) {
         <a className="quiet-link" href="#catalog">Каталог</a>
         <a className="quiet-link" href="#about">О нас</a>
         <AdminHeaderLink />
-        <Link className="quiet-link" href="/sign-in" data-testid="link-sign-in">Войти</Link>
+        {!isLoaded ? <span className="account-loading" role="status">Проверяем аккаунт…</span> : isSignedIn && user ? <>
+          <div className="account-profile" data-testid="account-profile" title={user.primaryEmailAddress?.emailAddress || displayName}>
+            {user.imageUrl ? <img className="account-avatar" src={user.imageUrl} alt="" /> : <span className="account-avatar-fallback"><UserRound size={16} /></span>}
+            <span className="account-profile-text"><strong>{displayName}</strong><small>{user.primaryEmailAddress?.emailAddress || 'Вы вошли в аккаунт'}</small></span>
+          </div>
+          <button className="account-logout" onClick={() => void handleSignOut()} disabled={signingOut} data-testid="button-sign-out">
+            <LogOut size={15} /><span>{signingOut ? 'Выходим…' : 'Выйти'}</span>
+          </button>
+        </> : <Link className="quiet-link" href="/sign-in" data-testid="link-sign-in">Войти</Link>}
         <button className="icon-button" onClick={onCart} data-testid="button-open-cart" aria-label="Открыть корзину">
           <ShoppingBag size={18} strokeWidth={1.5} /><span>Корзина</span><span className="cart-count" data-testid="text-cart-count">{count}</span>
         </button>
