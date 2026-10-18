@@ -203,7 +203,7 @@ function ProductCard({ product, index, onAdd }: { product: Product; index: numbe
   </article>;
 }
 
-function CartDrawer({ items, onClose, onQty, onRemove }: {
+function CartDrawer({ items, onClose, onQty, onRemove, onOrderSubmitted }: {
   items: CartItem[];
   onClose: () => void;
   onQty: (id: number, delta: number) => void;
