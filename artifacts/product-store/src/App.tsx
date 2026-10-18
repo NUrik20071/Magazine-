@@ -341,10 +341,10 @@ function Catalog() {
     <main>
       <section className="hero">
         <div className="hero-copy">
-          <span className="eyebrow">Маленькая коллекция для дома</span>
-          <h1>Жить<br />чуть тише.</h1>
-          <p>Вещи, которые не требуют внимания — только становятся частью хорошего дня. Собираем их небольшими партиями.</p>
-          <a className="cta" href="#catalog" data-testid="link-explore-catalog">Смотреть коллекцию <ArrowDownRight size={16} /></a>
+          <span className="eyebrow">{storefront.content.heroEyebrow}</span>
+          <h1>{storefront.content.heroTitle.split("\n").map((line, i) => <React.Fragment key={i}>{i > 0 && <br />}{line}</React.Fragment>)}</h1>
+          <p>{storefront.content.heroText}</p>
+          <a className="cta" href="#catalog" data-testid="link-explore-catalog">{storefront.content.heroButtonText} <ArrowDownRight size={16} /></a>
         </div>
         <div className="hero-art">
           <span className="hero-index">ПРЕДМЕТЫ С ХАРАКТЕРОМ · № 01</span>
@@ -369,18 +369,18 @@ function Catalog() {
         </div>
         {productsQuery.isLoading ? <div className="product-grid" aria-label="Загрузка товаров">{[1, 2, 3, 4].map((n) => <div className="skeleton" key={n} style={{ aspectRatio: '.83' }} />)}</div> :
           productsQuery.isError ? <div className="error-state"><h3 className="serif">Не удалось загрузить коллекцию</h3><p>Проверьте соединение и попробуйте ещё раз.</p><button className="primary-button" onClick={() => productsQuery.refetch()} data-testid="button-retry-products">Повторить</button></div> :
-            products.length ? <div className="product-grid">{products.map((product, index) => <ProductCard key={product.id} product={product} index={index} onAdd={addProduct} />)}</div> :
+            products.length ? <div className="product-grid">{products.map((product, index) => <ProductCard key={product.id} product={product} index={index} onAdd={addProduct} onOpen={setSelectedProduct} />)}</div> :
               <div className="empty-state" data-testid="empty-products">Коллекция пока собирается.<br /><span style={{ fontSize: 13 }}>Загляните чуть позже — здесь появятся новые находки.</span></div>}
       </section>
-      <section className="story-band" id="about">
+      <StorefrontBlocks blocks={storefront.blocks} />\n      <section className="story-band" id="about">
         <div className="story-inner">
-          <div><span className="eyebrow">Небольшое объяснение</span><h2>Не больше.<br />Лучше.</h2><p>«Тихо» — маленький магазин вещей, которые приятно держать рядом. Мы не гонимся за количеством и выбираем предметы так, как выбирали бы для собственного дома.</p><a className="quiet-link" href="#catalog" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 9, fontSize: 12 }}>Вернуться к вещам <ArrowRight size={14} /></a></div>
+          <div><span className="eyebrow">Небольшое объяснение</span><h2>{storefront.content.storyTitle.split("\n").map((line, i) => <React.Fragment key={i}>{i > 0 && <br />}{line}</React.Fragment>)}</h2><p>{storefront.content.storyText}</p><a className="quiet-link" href="#catalog" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 9, fontSize: 12 }}>Вернуться к вещам <ArrowRight size={14} /></a></div>
           <div className="story-mark">«Хорошая вещь не заполняет пространство — она делает его вашим»</div>
         </div>
       </section>
     </main>
     <footer className="footer"><Link href="/" className="brand">тихо.<small>дом и повседневность</small></Link><div className="footer-note">Алматы · Казахстан<br />Корзина хранится на устройстве</div><span className="mono" style={{ fontSize: 9 }}>© {new Date().getFullYear()} ТИХО</span></footer>
-    {cartOpen && <CartDrawer items={cart} onClose={() => setCartOpen(false)} onQty={changeQty} onRemove={removeItem} onOrderSubmitted={() => setCart([])} />}
+    {selectedProduct && <ProductDetailModal product={selectedProduct} onClose={() => setSelectedProduct(null)} onAdd={addProduct} />}\n    {cartOpen && <CartDrawer items={cart} onClose={() => setCartOpen(false)} onQty={changeQty} onRemove={removeItem} onOrderSubmitted={() => setCart([])} />}
   </div>;
 }
 
