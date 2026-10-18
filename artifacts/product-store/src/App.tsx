@@ -188,7 +188,7 @@ function ShopHeader({ count, onCart, announcement, content }: { count: number; o
 
 function ProductCard({ product, index, onAdd, onOpen }: { product: Product; index: number; onAdd: (product: Product) => void; onOpen: (product: Product) => void }) {
   const source = productImage(product, index);
-  const isVideo = /\\.(mp4|webm|mov|m4v)(?:[?#].*)?$/i.test(source);
+  const isVideo = isVideoMedia(source);
   return <article className="product-card" data-element-id="product-card" data-testid={`card-product-${product.id}`} onClick={() => onOpen(product)} tabIndex={0} role="button" onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(product); } }} aria-label={`Открыть товар ${product.name}`}>
     <div className="product-photo">
       {isVideo ? <video src={source} aria-label={product.name} autoPlay muted loop playsInline preload="metadata" data-testid={`video-product-${product.id}`} /> : <img src={source} alt={product.name} loading="lazy" data-testid={`img-product-${product.id}`} />}
@@ -287,6 +287,15 @@ function normalizeSourceUrl(value: string): string {
   if (/^[a-z0-9.-]+\.[a-z]{2,}(?::\d+)?(?:[/?#].*)?$/i.test(input)) return 'https://' + input;
   return input;
 }
+function isVideoMedia(value: string): boolean {
+  const path = normalizeSourceUrl(value || '').split(/[?#]/)[0].toLowerCase();
+  return ['.mp4', '.webm', '.mov', '.m4v'].some(extension => path.endsWith(extension));
+}
+function buildCodePreview(code: StorefrontConfig['customCode']): string {
+  const safeJs = code.js.replace(/<\/script/gi, '<\\/script');
+  return '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui;margin:0;padding:16px}img,video,iframe{max-width:100%}' + code.css + '</style></head><body>' + code.html + '<script>' + safeJs + '</script></body></html>';
+}
+
 function youtubeVideoId(value: string): string | null {
   try {
     const url = new URL(normalizeSourceUrl(value));
@@ -368,7 +377,7 @@ function ProductDetailModal({ product, onClose, onAdd }: { product: Product; onC
   return <div className="product-detail-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="product-detail" role="dialog" aria-modal="true" aria-label={product.name}>
       <button className="product-detail-close" onClick={onClose} aria-label="Закрыть карточку"><X /></button>
-      <div className="product-detail-gallery"><div className="product-detail-thumbs"><button className="active"><img src={product.imageUrl || '/images/orbit-vase.png'} alt="" /></button></div><div className="product-detail-main-image">{/\\.(mp4|webm|mov|m4v)(?:[?#].*)?$/i.test(product.imageUrl || '') ? <video src={normalizeSourceUrl(product.imageUrl)} autoPlay muted loop controls playsInline /> : <img src={product.imageUrl || '/images/orbit-vase.png'} alt={product.name} />}</div></div>
+      <div className="product-detail-gallery"><div className="product-detail-thumbs"><button className="active"><img src={product.imageUrl || '/images/orbit-vase.png'} alt="" /></button></div><div className="product-detail-main-image">{isVideoMedia(product.imageUrl || '') ? <video src={normalizeSourceUrl(product.imageUrl)} autoPlay muted loop controls playsInline /> : <img src={product.imageUrl || '/images/orbit-vase.png'} alt={product.name} />}</div></div>
       <div className="product-detail-info"><span className="eyebrow">{product.category}</span><h1>{product.name}</h1><div className="product-detail-price">{money(product.price)}</div>{product.badge && <span className="badge detail-badge">{product.badge}</span>}<p>{product.description || 'Подробности о товаре уточняйте у продавца.'}</p><div className="product-detail-benefits"><span>✓ Ручной отбор предметов</span><span>✓ Доставка по Казахстану</span><span>✓ Заказ подтверждается вручную</span></div><button className="primary-button product-detail-add" onClick={() => { onAdd(product); onClose(); }}><ShoppingBag size={17} /> Добавить в корзину</button><button className="secondary-button product-detail-back" onClick={onClose}>Вернуться в каталог</button></div>
     </section>
   </div>;
@@ -525,7 +534,7 @@ function Catalog() {
         </div>
         <div className="hero-art">
           <span className="hero-index">{storefront.content.heroIndexText}</span>
-          <a className="hero-image-link" data-element-id="hero-image" href={normalizeSourceUrl(storefront.content.heroImageLink || '#catalog')}>{/\\.(mp4|webm|mov|m4v)(?:[?#].*)?$/i.test(storefront.content.heroImage || '') ? <video src={normalizeSourceUrl(storefront.content.heroImage)} autoPlay muted loop playsInline /> : <img src={normalizeSourceUrl(storefront.content.heroImage || featured?.imageUrl || '/images/orbit-vase.png')} alt={featured?.name || 'Керамическая ваза в солнечном свете'} />}</a>
+          <a className="hero-image-link" data-element-id="hero-image" href={normalizeSourceUrl(storefront.content.heroImageLink || '#catalog')}>{isVideoMedia(storefront.content.heroImage || '') ? <video src={normalizeSourceUrl(storefront.content.heroImage)} autoPlay muted loop playsInline /> : <img src={normalizeSourceUrl(storefront.content.heroImage || featured?.imageUrl || '/images/orbit-vase.png')} alt={featured?.name || 'Керамическая ваза в солнечном свете'} />}</a>
           <span className="hero-note">{storefront.content.heroNote}</span>
         </div>
       </section>
@@ -782,7 +791,7 @@ function StorefrontSettingsEditor() {
         <label className="form-field code-label">CSS — любой стиль, фон, фото/видео-фон, карточки, адаптивность<textarea spellCheck={false} rows={14} value={config.customCode.css} onChange={e => setConfig(s => ({...s,customCode:{...s.customCode,css:e.target.value}}))} placeholder={'.my-section { min-height: 70vh; background: url("/api/media/123") center/cover; }\n.product-card { border-radius: 24px; }'} /></label>
         <label className="form-field code-label">JavaScript — логика и интерактивность<textarea spellCheck={false} rows={12} value={config.customCode.js} onChange={e => setConfig(s => ({...s,customCode:{...s.customCode,js:e.target.value}}))} placeholder={'document.querySelectorAll(".my-section").forEach(section => { section.addEventListener("click", () => console.log("clicked")); });'} /></label>
         <div className="code-studio-actions"><button type="button" className="secondary-button" onClick={() => setConfig(s => ({...s,customCode:{html:'',css:'',js:''}}))}>Очистить весь код</button><button type="button" className="secondary-button" onClick={() => setSourceNotice('Код редактируется выше. Предпросмотр изолирован и не меняет опубликованный сайт до сохранения.')}>Как работает предпросмотр</button></div>
-        <div className="code-preview"><div className="editor-live-preview-head"><strong>ПРЕДПРОСМОТР HTML / CSS / JS</strong><span>Изолированный iframe</span></div><iframe title="Предпросмотр пользовательского кода" sandbox="allow-scripts" srcDoc={'<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui;margin:0;padding:16px}img,video,iframe{max-width:100%}'+config.customCode.css+'</style></head><body>'+config.customCode.html+'<script>'+config.customCode.js.replace(/<\\/script/gi,'<\\\\/script')+'<\\/script></body></html>'} /></div>
+        <div className="code-preview"><div className="editor-live-preview-head"><strong>ПРЕДПРОСМОТР HTML / CSS / JS</strong><span>Изолированный iframe</span></div><iframe title="Предпросмотр пользовательского кода" sandbox="allow-scripts" srcDoc={buildCodePreview(config.customCode)} /></div>
       </div>
       <div className="editor-group editor-group-wide ai-code-assistant"><h3>AI-помощник по коду</h3><p className="editor-help">Укажи OpenAI-совместимый API, модель и ключ. Ключ используется только на время запроса и не сохраняется в настройках сайта. Поддерживаются OpenAI, OpenRouter, Groq и DeepSeek.</p>
         <AiCodeAssistant config={config} onApply={(customCode) => setConfig(s => ({...s,customCode}))} getToken={getToken} setNotice={setSourceNotice} setError={setError} />
@@ -807,7 +816,7 @@ function StorefrontSettingsEditor() {
           <div className="editor-mini-announcement" style={{display:config.sections.header ? undefined : "none"}}>{config.content.announcement}</div><div className="editor-mini-site-head" style={{display:config.sections.header ? undefined : "none"}}><strong>{config.content.siteName}</strong><span>{config.content.navCatalogLabel} · {config.content.navAboutLabel}</span><small>{config.content.siteTagline}</small></div>
           <div className="editor-mini-hero" style={{ background: config.theme.gradient, display: config.sections.hero ? undefined : "none", order: Math.max(0, config.sectionOrder.indexOf("hero")) }}>
             <div><small>{config.content.heroEyebrow}</small><h3 style={{ fontFamily: config.theme.headingFont }}>{config.content.heroTitle.replace(/\n/g, ' ')}</h3><p>{config.content.heroText}</p><span style={{ background: config.theme.accent, color: config.theme.accentText }}>{config.content.heroButtonText}</span></div>
-            <div className="editor-mini-product" style={{ background: config.theme.cardBackground, borderRadius: config.theme.cardRadius }}>{/\\.(mp4|webm|mov|m4v)(?:[?#].*)?$/i.test(config.content.heroImage || '') ? <video src={normalizeSourceUrl(config.content.heroImage)} autoPlay muted loop playsInline /> : <img src={config.content.heroImage || '/images/orbit-vase.png'} alt="" />}<strong>Керамическая ваза</strong><small>12 000 ₸</small></div>
+            <div className="editor-mini-product" style={{ background: config.theme.cardBackground, borderRadius: config.theme.cardRadius }}>{isVideoMedia(config.content.heroImage || '') ? <video src={normalizeSourceUrl(config.content.heroImage)} autoPlay muted loop playsInline /> : <img src={config.content.heroImage || '/images/orbit-vase.png'} alt="" />}<strong>Керамическая ваза</strong><small>12 000 ₸</small></div>
           </div>
           <div className="editor-mini-ticker" style={{display:config.sections.ticker ? undefined : "none",order:Math.max(0,config.sectionOrder.indexOf("ticker"))}}>{config.content.ticker1}　•　{config.content.ticker2}　•　{config.content.ticker3}</div><section className="editor-mini-catalog" style={{display:config.sections.catalog ? undefined : "none",order:Math.max(0,config.sectionOrder.indexOf("catalog"))}}><small>{config.content.catalogEyebrow}</small><h3>{config.content.catalogTitle.replace(/\n/g, " ")}</h3><div className="editor-mini-cards">{[1,2,3].map(n => <div key={n} style={{ background: config.theme.cardBackground, borderRadius: config.theme.cardRadius }}><img src={n === 1 ? config.content.heroImage || "/images/orbit-vase.png" : n === 2 ? "/images/linen-lamp.png" : "/images/terracotta-tray.png"} alt="" /><span>Пример товара {n}</span><small>12 000 ₸</small></div>)}</div></section><div style={{display:config.sections.custom ? undefined : "none",order:Math.max(0,config.sectionOrder.indexOf("custom"))}}><StorefrontBlocks blocks={config.blocks} /></div><section className="editor-mini-story" style={{ background: config.theme.gradient,display:config.sections.story ? undefined : "none",order:Math.max(0,config.sectionOrder.indexOf("story")) }}><small>{config.content.storyEyebrow}</small><h3>{config.content.storyTitle.replace(/\n/g, " ")}</h3><p>{config.content.storyText}</p><blockquote>{config.content.storyQuote}</blockquote></section><footer className="editor-mini-footer" style={{display:config.sections.footer ? undefined : "none",order:99}}><strong>{config.content.siteName}</strong><span>{config.content.footerLocation}</span><span>{config.content.footerNote}</span><small>© {new Date().getFullYear()} {config.content.copyrightLabel}</small></footer>
         </div>
