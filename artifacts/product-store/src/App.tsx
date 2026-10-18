@@ -375,7 +375,7 @@ function Catalog() {
       <StorefrontBlocks blocks={storefront.blocks} />
       <section className="story-band" id="about">
         <div className="story-inner">
-          <div><span className="eyebrow">Небольшое объяснение</span><h2>{storefront.content.storyTitle.split("\n").map((line, i) => <React.Fragment key={i}>{i > 0 && <br />}{line}</React.Fragment>)}</h2><p>{storefront.content.storyText}</p><a className="quiet-link" href="#catalog" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 9, fontSize: 12 }}>Вернуться к вещам <ArrowRight size={14} /></a></div>
+          <div><span className="eyebrow">Небольшое объяснение</span><h2>{storefront.content.storyTitle.split("\n").map((line, i) => <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>)}</h2><p>{storefront.content.storyText}</p><a className="quiet-link" href="#catalog" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 9, fontSize: 12 }}>Вернуться к вещам <ArrowRight size={14} /></a></div>
           <div className="story-mark">«Хорошая вещь не заполняет пространство — она делает его вашим»</div>
         </div>
       </section>
