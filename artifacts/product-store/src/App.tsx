@@ -341,10 +341,10 @@ function AdminGate() {
     return () => setAuthTokenGetter(null);
   }, [getToken, isLoaded]);
   const overviewQuery = useGetAdminOverview({
-    query: { enabled: isLoaded && isSignedIn === true && tokenReady, retry: false },
+    query: { queryKey: getGetAdminOverviewQueryKey(), enabled: isLoaded && isSignedIn === true && tokenReady, retry: false },
   });
   const productsQuery = useListAdminProducts({
-    query: { enabled: isLoaded && isSignedIn === true && tokenReady, retry: false },
+    query: { queryKey: getListAdminProductsQueryKey(), enabled: isLoaded && isSignedIn === true && tokenReady, retry: false },
   });
   const [activeView, setActiveView] = useState<'overview' | 'products'>('overview');
   const [editor, setEditor] = useState<Product | null | undefined>(undefined);
