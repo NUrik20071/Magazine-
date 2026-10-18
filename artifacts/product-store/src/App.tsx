@@ -187,7 +187,7 @@ function ShopHeader({ count, onCart, announcement, content }: { count: number; o
 }
 
 function ProductCard({ product, index, onAdd, onOpen }: { product: Product; index: number; onAdd: (product: Product) => void; onOpen: (product: Product) => void }) {
-  return <article className="product-card" data-element-id="product-card" data-testid={`card-product-${product.id}`> onClick={() => onOpen(product)} tabIndex={0} role="button" onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(product); } }} aria-label={`Открыть товар ${product.name}`}>
+  return <article className="product-card" data-element-id="product-card" data-testid={`card-product-${product.id}`} onClick={() => onOpen(product)} tabIndex={0} role="button" onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(product); } }} aria-label={`Открыть товар ${product.name}`}>
     <div className="product-photo">
       <img src={productImage(product, index)} alt={product.name} loading="lazy" data-testid={`img-product-${product.id}`} />
       {product.badge && <span className="badge">{product.badge}</span>}
