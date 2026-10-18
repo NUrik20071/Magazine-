@@ -495,7 +495,7 @@ function AdminGate() {
   const productsQuery = useListAdminProducts({
     query: { queryKey: getListAdminProductsQueryKey(), enabled: isLoaded && isSignedIn === true && tokenReady, retry: false },
   });
-  const [activeView, setActiveView] = useState<'overview' | 'products' | 'orders'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'products' | 'orders' | 'settings'>('overview');
   const [orders, setOrders] = useState<any[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState('');
@@ -566,12 +566,13 @@ function AdminGate() {
         <button className={activeView === 'overview' ? 'selected' : ''} onClick={() => setActiveView('overview')} data-testid="button-admin-overview"><Leaf size={16} />Обзор</button>
         <button className={activeView === 'products' ? 'selected' : ''} onClick={() => setActiveView('products')} data-testid="button-admin-products"><Package size={16} />Предметы</button>
         <button className={activeView === 'orders' ? 'selected' : ''} onClick={() => setActiveView('orders')} data-testid="button-admin-orders"><ClipboardList size={16} />Заказы</button>
+        <button className={activeView === 'settings' ? 'selected' : ''} onClick={() => setActiveView('settings')} data-testid="button-admin-settings"><Settings size={16} />Оформление сайта</button>
       </nav></div>
       <div><div className="admin-label">Публичный магазин</div><Link className="quiet-link" style={{ color: '#d7dfd3', fontSize: 12, padding: 12, display: 'flex', alignItems: 'center', gap: 9 }} href="/" data-testid="link-view-store">Открыть витрину <ArrowRight size={13} /></Link></div>
     </aside>
     <main className="admin-main"><div className="admin-content">
       <div className="admin-top">
-        <div><div className="eyebrow">Тихо · администрирование</div><h1>{activeView === 'overview' ? 'Обзор магазина' : activeView === 'products' ? 'Каталог предметов' : 'Модерация заказов'}</h1></div>
+        <div><div className="eyebrow">Тихо · администрирование</div><h1>{activeView === 'overview' ? 'Обзор магазина' : activeView === 'products' ? 'Каталог предметов' : activeView === 'orders' ? 'Модерация заказов' : 'Оформление сайта'}</h1></div>
         <div className="admin-top-actions">
           <div className="admin-account" title={user?.primaryEmailAddress?.emailAddress || adminDisplayName}>
             {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : <span className="admin-account-fallback"><UserRound size={15} /></span>}
@@ -579,11 +580,11 @@ function AdminGate() {
           </div>
           <Link className="admin-store-switch" href="/" data-testid="button-switch-to-store"><ShoppingBag size={15} /> Обычный сайт</Link>
           <button className="account-logout" onClick={() => void handleAdminSignOut()} disabled={signingOut} data-testid="button-admin-sign-out"><LogOut size={15} /><span>{signingOut ? 'Выходим…' : 'Выйти'}</span></button>
-          <button className="primary-button" onClick={() => setEditor(null)} data-testid="button-create-product"><Plus size={15} /> Новый предмет</button>
+          {activeView === 'products' && <button className="primary-button" onClick={() => setEditor(null)} data-testid="button-create-product"><Plus size={15} /> Новый предмет</button>}
         </div>
       </div>
       {notice && <p role="status" style={{ color: '#486d53', fontSize: 12 }} data-testid="status-admin-notice">{notice}<button className="plain-icon" onClick={() => setNotice('')} aria-label="Закрыть сообщение"><X size={13} /></button></p>}
-      {activeView === 'orders' ? <section className="orders-panel">
+      {activeView === 'settings' ? <StorefrontSettingsEditor /> : activeView === 'orders' ? <section className="orders-panel">
         <div className="orders-intro"><span className="eyebrow">Ручная проверка</span><p>Подтверждение заказа не означает, что оплата уже получена.</p></div>
         {ordersError && <p className="form-error" role="alert">{ordersError}</p>}
         {ordersLoading ? <div className="skeleton" style={{height:160}} /> : orders.length ? <div className="order-list">{orders.map(order => <article className="order-card" key={order.id}>
