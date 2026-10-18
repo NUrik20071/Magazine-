@@ -289,7 +289,9 @@ function normalizeSourceUrl(value: string): string {
 }
 function isVideoMedia(value: string): boolean {
   const path = normalizeSourceUrl(value || '').split(/[?#]/)[0].toLowerCase();
-  return ['.mp4', '.webm', '.mov', '.m4v'].some(extension => path.endsWith(extension));
+  let mediaType = '';
+  try { mediaType = new URL(normalizeSourceUrl(value || ''), window.location.origin).searchParams.get('mediaType') || ''; } catch { /* Treat it as a normal URL. */ }
+  return mediaType.startsWith('video/') || ['.mp4', '.webm', '.mov', '.m4v'].some(extension => path.endsWith(extension));
 }
 function buildCodePreview(code: StorefrontConfig['customCode']): string {
   const safeJs = code.js.replace(/<\/script/gi, '<\\/script');
@@ -666,7 +668,7 @@ function StorefrontSettingsEditor() {
   const updateAdminTheme = (key: keyof AdminTheme, value: string | number) => setConfig((c) => ({ ...c, adminTheme: { ...c.adminTheme, [key]: value } }));
   const updateSection = (key: keyof StorefrontConfig['sections'], value: boolean) => setConfig((c) => ({ ...c, sections: { ...c.sections, [key]: value } }));
   function moveSection(index: number, direction: number) { setConfig((c) => { const sectionOrder = [...c.sectionOrder]; const target = index + direction; if (target < 0 || target >= sectionOrder.length) return c; [sectionOrder[index], sectionOrder[target]] = [sectionOrder[target], sectionOrder[index]]; return { ...c, sectionOrder }; }); }
-  async function uploadMedia(file: File): Promise<string> { if (file.size > 25 * 1024 * 1024) throw new Error('Максимальный размер файла — 25 МБ.'); const token = await getToken(); const response = await fetch('/api/admin/media?filename=' + encodeURIComponent(file.name), { method: 'POST', headers: { 'Content-Type': file.type, ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: file }); const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Не удалось загрузить медиа'); return body.url as string; }
+  async function uploadMedia(file: File): Promise<string> { if (file.size > 25 * 1024 * 1024) throw new Error('Максимальный размер файла — 25 МБ.'); const token = await getToken(); const response = await fetch('/api/admin/media?filename=' + encodeURIComponent(file.name), { method: 'POST', headers: { 'Content-Type': file.type, ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: file }); const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Не удалось загрузить медиа'); return (body.url as string) + '?mediaType=' + encodeURIComponent(file.type); }
   async function uploadHeroImage(file?: File) { if (!file) return; try { updateContent('heroImage', await uploadMedia(file)); } catch (error) { setError(error instanceof Error ? error.message : 'Не удалось загрузить медиа'); } }
   async function uploadBlockMedia(index: number, file?: File) { if (!file) return; try { updateBlock(index, 'mediaUrl', await uploadMedia(file)); } catch (error) { setError(error instanceof Error ? error.message : 'Не удалось загрузить медиа'); } }
   async function resolveBlockSource(index: number) {
@@ -833,7 +835,7 @@ function AdminGate() {
   const [, navigate] = useLocation();
   const [signingOut, setSigningOut] = useState(false);
   const adminDisplayName = user?.fullName || user?.firstName || user?.primaryEmailAddress?.emailAddress || 'Администратор';
-  async function uploadMedia(file: File): Promise<string> { if (file.size > 25 * 1024 * 1024) throw new Error('Максимальный размер файла — 25 МБ.'); const token = await getToken(); const response = await fetch('/api/admin/media?filename=' + encodeURIComponent(file.name), { method: 'POST', headers: { 'Content-Type': file.type, ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: file }); const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Не удалось загрузить медиа'); return body.url as string; }
+  async function uploadMedia(file: File): Promise<string> { if (file.size > 25 * 1024 * 1024) throw new Error('Максимальный размер файла — 25 МБ.'); const token = await getToken(); const response = await fetch('/api/admin/media?filename=' + encodeURIComponent(file.name), { method: 'POST', headers: { 'Content-Type': file.type, ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: file }); const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Не удалось загрузить медиа'); return (body.url as string) + '?mediaType=' + encodeURIComponent(file.type); }
   useEffect(() => { let cancelled = false; void getToken().then(token => fetch('/api/admin/storefront/settings', { headers: token ? { Authorization: 'Bearer ' + token } : {} })).then(response => response.ok ? response.json() : null).then(payload => { const data = payload?.config; if (cancelled || !data) return; const theme = { ...defaultStorefront.adminTheme, ...(data.adminTheme || {}) }; const root = document.documentElement; root.style.setProperty('--admin-background', theme.background); root.style.setProperty('--admin-sidebar', theme.sidebar); root.style.setProperty('--admin-accent', theme.accent); root.style.setProperty('--admin-text', theme.text); root.style.setProperty('--admin-surface', theme.surface); root.style.setProperty('--admin-font', '"' + theme.font + '", sans-serif'); root.style.setProperty('--admin-radius', theme.radius + 'px'); }).catch(() => undefined); return () => { cancelled = true; }; }, [getToken]);
   async function handleAdminSignOut() {
     setSigningOut(true);
