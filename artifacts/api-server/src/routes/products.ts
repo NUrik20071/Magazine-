@@ -22,7 +22,23 @@ import { requireAdmin } from "../middlewares/adminAuth";
 const router: IRouter = Router();
 
 router.get("/products", async (req, res): Promise<void> => {
-  const parsed = ListProductsQueryParams.safeParse(req.query);
+  // Query strings are strings. Boolean("false") is true in JavaScript,
+  // so validate and convert this parameter before passing it to Zod.
+  const rawFeatured = req.query.featured;
+  if (
+    rawFeatured !== undefined &&
+    rawFeatured !== "true" &&
+    rawFeatured !== "false"
+  ) {
+    res.status(400).json({ error: 'The "featured" parameter must be "true" or "false".' });
+    return;
+  }
+
+  const parsed = ListProductsQueryParams.safeParse({
+    ...req.query,
+    ...(rawFeatured === "true" ? { featured: true } : {}),
+    ...(rawFeatured === "false" ? { featured: false } : {}),
+  });
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;

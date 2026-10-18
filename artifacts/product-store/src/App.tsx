@@ -88,6 +88,35 @@ const clerkAppearance = {
 };
 
 type CartItem = { product: Product; quantity: number };
+
+function restoreCart(raw: string | null): CartItem[] {
+  if (!raw) return [];
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is CartItem => {
+      if (!item || typeof item !== "object") return false;
+      const candidate = item as Partial<CartItem>;
+      const product = candidate.product;
+      if (!product || typeof product !== "object") return false;
+      return Number.isSafeInteger(product.id) && product.id > 0 &&
+        typeof product.name === "string" && product.name.trim().length > 0 &&
+        typeof product.slug === "string" &&
+        typeof product.category === "string" &&
+        typeof product.description === "string" &&
+        Number.isSafeInteger(product.price) && product.price >= 0 &&
+        typeof product.imageUrl === "string" &&
+        (typeof product.badge === "string" || product.badge === null) &&
+        typeof product.isFeatured === "boolean" &&
+        typeof product.isActive === "boolean" &&
+        Number.isSafeInteger(candidate.quantity) &&
+        candidate.quantity! >= 1 && candidate.quantity! <= 99;
+    });
+  } catch {
+    return [];
+  }
+}
+
 const photoChoices = [
   '/images/orbit-vase.png',
   '/images/linen-lamp.png',
@@ -181,21 +210,38 @@ function Catalog() {
   const [category, setCategory] = useState('');
   const [cartOpen, setCartOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>(() => {
-    try { return JSON.parse(localStorage.getItem('tihoshop-cart') || '[]') as CartItem[]; } catch { return []; }
+    try { return restoreCart(localStorage.getItem('tihoshop-cart')); } catch { return []; }
   });
   const listParams = useMemo(() => ({ ...(search.trim() ? { search: search.trim() } : {}), ...(category ? { category } : {}) }), [search, category]);
   const productsQuery = useListProducts(listParams);
   const summaryQuery = useGetStoreSummary();
   const products = productsQuery.data ?? [];
+  useEffect(() => {
+    if (!productsQuery.data) return;
+    const latestById = new Map(productsQuery.data.map((product) => [product.id, product]));
+    setCart((items) => items.map((item) => {
+      const latest = latestById.get(item.product.id);
+      return latest ? { ...item, product: latest } : item;
+    }));
+  }, [productsQuery.data]);
   const categories = summaryQuery.data?.categoryNames ?? Array.from(new Set(products.map((product) => product.category)));
   const featured = summaryQuery.data?.featuredProducts?.[0];
   const count = cart.reduce((sum, item) => sum + item.quantity, 0);
-  useEffect(() => { localStorage.setItem('tihoshop-cart', JSON.stringify(cart)); }, [cart]);
+  useEffect(() => {
+    try { localStorage.setItem('tihoshop-cart', JSON.stringify(cart)); } catch { /* Storage may be unavailable or full. */ }
+  }, [cart]);
   const addProduct = (product: Product) => setCart((items) => {
     const found = items.find((item) => item.product.id === product.id);
-    return found ? items.map((item) => item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item) : [...items, { product, quantity: 1 }];
+    return found
+      ? items.map((item) => item.product.id === product.id ? { ...item, product, quantity: Math.min(99, item.quantity + 1) } : item)
+      : [...items, { product, quantity: 1 }];
   });
-  const changeQty = (id: number, delta: number) => setCart((items) => items.map((item) => item.product.id === id ? { ...item, quantity: item.quantity + delta } : item).filter((item) => item.quantity > 0));
+  const changeQty = (id: number, delta: number) => setCart((items) =>
+    items.map((item) => item.product.id === id
+      ? { ...item, quantity: Math.max(0, Math.min(99, item.quantity + delta)) }
+      : item
+    ).filter((item) => item.quantity > 0)
+  );
   const removeItem = (id: number) => setCart((items) => items.filter((item) => item.product.id !== id));
 
   return <div className="shop-shell">
