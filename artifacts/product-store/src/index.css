@@ -585,3 +585,28 @@ button { cursor: pointer; }
   .account-logout span { display: none; }
   .account-logout svg { width: 16px; height: 16px; }
 }
+
+
+/* Admin account actions and quick switch back to the public storefront */
+.admin-top-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
+.admin-account { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 220px; }
+.admin-account > img, .admin-account-fallback { width: 32px; height: 32px; flex: 0 0 32px; border-radius: 50%; object-fit: cover; border: 1px solid #d8d0c3; }
+.admin-account-fallback { display: grid; place-items: center; background: #e8dfcf; color: #244c43; }
+.admin-account > span:last-child { display: grid; gap: 3px; min-width: 0; }
+.admin-account strong { color: #244c43; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-account small { color: #7b857b; font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-store-switch { display: inline-flex; align-items: center; gap: 7px; padding: 10px 12px; border: 1px solid #d8d0c3; color: #244c43; text-decoration: none; font-size: 11px; white-space: nowrap; }
+.admin-store-switch:hover { background: #e8dfcf; }
+.gate-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; }
+@media (max-width: 850px) {
+  .admin-top { align-items: flex-start; flex-direction: column; }
+  .admin-top-actions { justify-content: flex-start; width: 100%; }
+}
+@media (max-width: 600px) {
+  .admin-top-actions { gap: 8px; }
+  .admin-account { max-width: 145px; }
+  .admin-account strong { max-width: 110px; }
+  .admin-account small { display: none; }
+  .admin-store-switch { padding: 8px; font-size: 10px; }
+  .admin-top-actions .account-logout { padding: 8px; }
+}
