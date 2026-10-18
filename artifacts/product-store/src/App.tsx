@@ -307,13 +307,25 @@ function mediaEmbedUrl(value: string, type: StorefrontBlock['type']): string {
       url.searchParams.set('embed', '1');
       url.searchParams.set('mode', 'tme');
       return url.toString();
-    if (type === 'embed' && ['pinterest.com', 'www.pinterest.com'].includes(url.hostname.toLowerCase())) {
-      const pinId = url.pathname.match(/\/pin\/(\d+)/)?.[1];
-      if (pinId) return 'https://assets.pinterest.com/ext/embed.html?id=' + encodeURIComponent(pinId);
-    }
     }
   } catch { /* Keep relative and local asset paths unchanged. */ }
   return normalized;
+}
+function isPinterestSource(value: string): boolean {
+  try { const host = new URL(normalizeSourceUrl(value)).hostname.toLowerCase(); return ['pin.it', 'pinterest.com', 'www.pinterest.com'].includes(host); }
+  catch { return /^(?:https?:\/\/)?(?:www\.)?(?:pin\.it|pinterest\.com)\//i.test(value.trim()); }
+}
+function PinterestEmbed({ url, title }: { url: string; title: string }) {
+  useEffect(() => {
+    const src = 'https://assets.pinterest.com/js/pinit.js';
+    const existing = document.querySelector<HTMLScriptElement>('script[src="' + src + '"]');
+    if (existing) { (window as any).PinUtils?.build?.(); return; }
+    const script = document.createElement('script');
+    script.src = src; script.async = true; script.defer = true;
+    script.onload = () => (window as any).PinUtils?.build?.();
+    document.body.appendChild(script);
+  }, [url]);
+  return <div className="pinterest-embed"><a data-pin-do="embedPin" href={normalizeSourceUrl(url)}>{title || 'Открыть публикацию Pinterest'}</a></div>;
 }
 function StorefrontBlocks({ blocks }: { blocks: StorefrontBlock[] }) {
   if (!blocks.length) return null;
@@ -334,10 +346,12 @@ function StorefrontBlocks({ blocks }: { blocks: StorefrontBlock[] }) {
     let content: ReactNode;
     if (block.type === 'text') content = <div className="custom-block-copy"><h2 style={{ fontSize: block.titleSize && block.titleSize !== 'inherit' ? block.titleSize : undefined }}>{block.title}</h2><p>{block.text}</p></div>;
     else if (block.type === 'image') content = block.mediaUrl ? <img className="custom-block-media" style={{ objectFit: block.objectFit || 'contain', maxHeight: mediaHeight }} src={normalizeSourceUrl(block.mediaUrl)} alt={block.title || ''} /> : <div className="custom-block-placeholder">Выберите изображение из галереи или вставьте прямую ссылку.</div>;
-    else if (block.type === 'video' && (youtubeVideoId(block.mediaUrl || '') || /^(?:https?:\/\/)?(?:www\.)?(?:t\.me|telegram\.me|pin\.it|pinterest\.com)\//i.test((block.mediaUrl || '').trim()))) content = <iframe className="custom-block-embed" src={mediaEmbedUrl(block.mediaUrl || '', 'embed')} title={block.title || 'Видео'} loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen />;
+    else if (block.type === 'video' && (youtubeVideoId(block.mediaUrl || '') || /^(?:https?:\/\/)?(?:www\.)?(?:t\.me|telegram\.me)\//i.test((block.mediaUrl || '').trim()))) content = <iframe className="custom-block-embed" src={mediaEmbedUrl(block.mediaUrl || '', 'embed')} title={block.title || 'Видео'} loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen />;
+    else if (block.type === 'video' && isPinterestSource(block.mediaUrl || '')) content = <PinterestEmbed url={block.mediaUrl || ''} title={block.title || 'Pinterest'} />;
     else if (block.type === 'video') content = block.mediaUrl ? <video className="custom-block-media" style={{ objectFit: block.objectFit || 'contain', maxHeight: mediaHeight }} src={normalizeSourceUrl(block.mediaUrl)} controls playsInline /> : <div className="custom-block-placeholder">Загрузите видео или вставьте ссылку на MP4/WebM, YouTube или публичный пост Telegram.</div>;
     else if (block.type === 'audio') content = block.mediaUrl ? <audio src={normalizeSourceUrl(block.mediaUrl)} controls /> : <div className="custom-block-placeholder">Загрузите аудио или вставьте прямую ссылку на музыкальный файл.</div>;
-    else if (block.type === 'embed') content = block.mediaUrl ? <iframe className="custom-block-embed" src={mediaEmbedUrl(block.mediaUrl, 'embed')} title={block.title || 'Встроенный контент'} loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen /> : <div className="custom-block-placeholder">Вставьте ссылку на YouTube, Telegram или другой источник в настройках блока.</div>;
+    else if (block.type === 'embed' && block.mediaUrl && isPinterestSource(block.mediaUrl)) content = <PinterestEmbed url={block.mediaUrl} title={block.title || 'Pinterest'} />;
+    else if (block.type === 'embed') content = block.mediaUrl ? <iframe className="custom-block-embed" src={mediaEmbedUrl(block.mediaUrl, 'embed')} title={block.title || 'Встроенный контент'} loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen /> : <div className="custom-block-placeholder">Вставьте ссылку на YouTube, Telegram, Pinterest или другой источник в настройках блока.</div>;
     else if (block.type === 'map') content = block.mediaUrl ? <div className="custom-block-map-wrap"><iframe className="custom-block-map" src={mediaEmbedUrl(block.mediaUrl, 'map')} title={block.title || 'Карта 2ГИС'} loading="lazy" allowFullScreen /><a href={normalizeSourceUrl(block.mediaUrl)} target="_blank" rel="noreferrer">Открыть карту в источнике <ExternalLink size={14} /></a></div> : <div className="custom-block-placeholder">Вставьте ссылку на виджет карты 2ГИС.</div>;
     else content = <span>{block.label || block.title || 'Открыть'} <ExternalLink size={14} /></span>;
     const normalizedBlockUrl = normalizeSourceUrl(block.url || '');
