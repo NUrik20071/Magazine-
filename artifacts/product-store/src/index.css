@@ -854,3 +854,5 @@ body { background: var(--site-background); color: var(--site-text); font-family:
 [hidden] { display:none !important; }
 @media (max-width: 900px) { .puzzle-chain { grid-template-columns:1fr; } .puzzle-rule-head { align-items:flex-start; } }
 @media (max-width: 560px) { .editor-mini-cards { grid-template-columns:repeat(2,minmax(0,1fr)); } .editor-mini-cards > div:last-child { display:none; } .puzzle-rule { padding:10px; } .puzzle-piece { padding:11px; } .puzzle-rule-foot { flex-direction:column; } }
+
+.editor-mini-announcement { padding:7px 12px; background:var(--site-accent); color:var(--site-accent-text); text-align:center; font-size:10px; }
