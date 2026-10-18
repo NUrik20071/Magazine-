@@ -461,6 +461,19 @@ function Catalog() {
     if (Math.abs(delta) >= 55) runWorkflows(delta < 0 ? 'swipe-left' : 'swipe-right');
   };
   useEffect(() => {
+    if (!storefrontLoaded || !('IntersectionObserver' in window)) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const elements = Array.from(document.querySelectorAll<HTMLElement>('[data-animation="reveal"], [data-animation="blur"], [data-animation="rotate"], [data-animation="parallax"]'));
+    if (reduced) { elements.forEach(el => el.classList.add('motion-in')); return; }
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) { entry.target.classList.add('motion-in'); observer.unobserve(entry.target); }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
+    elements.forEach(el => { el.classList.add('motion-pending'); el.classList.remove('motion-in'); observer.observe(el); });
+    return () => observer.disconnect();
+  }, [storefront, storefrontLoaded]);
+  useEffect(() => {
     if (!storefrontLoaded) return;
     const frame = window.requestAnimationFrame(() => runWorkflows('page-load'));
     return () => window.cancelAnimationFrame(frame);
