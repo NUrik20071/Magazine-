@@ -1,6 +1,4 @@
 import { sql } from "drizzle-orm";
-
-const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
 import {
   bigserial,
   customType,
@@ -11,6 +9,8 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
 
 // These tables are also created by the API's idempotent CREATE TABLE IF NOT EXISTS
 // helpers. Declaring them here prevents drizzle-kit push from treating them as
