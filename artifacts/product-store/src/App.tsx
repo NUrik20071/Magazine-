@@ -216,6 +216,14 @@ function Catalog() {
   const productsQuery = useListProducts(listParams);
   const summaryQuery = useGetStoreSummary();
   const products = productsQuery.data ?? [];
+  useEffect(() => {
+    if (!productsQuery.data) return;
+    const latestById = new Map(productsQuery.data.map((product) => [product.id, product]));
+    setCart((items) => items.map((item) => {
+      const latest = latestById.get(item.product.id);
+      return latest ? { ...item, product: latest } : item;
+    }));
+  }, [productsQuery.data]);
   const categories = summaryQuery.data?.categoryNames ?? Array.from(new Set(products.map((product) => product.category)));
   const featured = summaryQuery.data?.featuredProducts?.[0];
   const count = cart.reduce((sum, item) => sum + item.quantity, 0);

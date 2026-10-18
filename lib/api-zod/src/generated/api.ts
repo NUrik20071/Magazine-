@@ -144,9 +144,9 @@ export const createProductBodyPriceMin = 0;
 
 
 export const CreateProductBody = zod.object({
-  "name": zod.string().min(1),
-  "slug": zod.string().min(1),
-  "category": zod.string().min(1),
+  "name": zod.string().min(1).regex(/\S/),
+  "slug": zod.string().min(1).regex(/\S/),
+  "category": zod.string().min(1).regex(/\S/),
   "description": zod.string(),
   "price": zod.number().int().min(createProductBodyPriceMin),
   "imageUrl": zod.string(),
@@ -189,9 +189,9 @@ export const updateProductBodyPriceMin = 0;
 
 
 export const UpdateProductBody = zod.object({
-  "name": zod.string().min(1).optional(),
-  "slug": zod.string().min(1).optional(),
-  "category": zod.string().min(1).optional(),
+  "name": zod.string().min(1).regex(/\S/).optional(),
+  "slug": zod.string().min(1).regex(/\S/).optional(),
+  "category": zod.string().min(1).regex(/\S/).optional(),
   "description": zod.string().optional(),
   "price": zod.number().int().min(updateProductBodyPriceMin).optional(),
   "imageUrl": zod.string().optional(),
