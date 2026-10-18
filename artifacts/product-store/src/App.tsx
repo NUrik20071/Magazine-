@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { ClerkProvider, SignIn, SignUp, useAuth, useClerk } from '@clerk/react';
 import { ruRU } from '@clerk/localizations';
-import { shadcn } from '@clerk/themes';
 import {
   getGetAdminOverviewQueryKey,
   getGetStoreSummaryQueryKey,
@@ -39,7 +38,7 @@ function stripBase(path: string) {
 }
 
 const clerkAppearance = {
-  theme: shadcn,
+  theme: 'simple',
   cssLayerName: 'clerk',
   options: {
     logoPlacement: 'inside' as const,
@@ -424,11 +423,11 @@ function ProductTable({ products, onEdit, onDelete }: { products: Product[]; onE
 
 function BrandedSignIn() {
   return <div className="auth-page"><aside className="auth-side"><Link href="/" className="brand" style={{ color: '#f7f2e8' }}>тихо.<small>дом и повседневность</small></Link><div><span className="eyebrow" style={{ color: '#d6a08d' }}>Ваше тихое место</span><h1>Рады, что вы вернулись.</h1><p>Войдите, чтобы продолжить управлять коллекцией и сохранить свои любимые находки.</p></div><span className="mono" style={{ fontSize: 9, letterSpacing: '.12em' }}>АЛМАТЫ · КАЗАХСТАН</span></aside>
-    <div className="auth-form-area"><div className="clerk-auth-card"><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} forceRedirectUrl={`${basePath}/admin`} /></div></div></div>;
+    <div className="auth-form-area"><div className="clerk-auth-card"><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} forceRedirectUrl={`${basePath}/admin`} fallback={<div role="status" style={{ padding: 24, color: "#244c43", textAlign: "center" }}>Загрузка формы входа…</div>} /></div></div></div>;
 }
 function BrandedSignUp() {
   return <div className="auth-page"><aside className="auth-side"><Link href="/" className="brand" style={{ color: '#f7f2e8' }}>тихо.<small>дом и повседневность</small></Link><div><span className="eyebrow" style={{ color: '#d6a08d' }}>В хорошей компании</span><h1>Меньше шума. Больше любимых вещей.</h1><p>Создайте аккаунт для нашей небольшой команды и бережно собирайте каталог.</p></div><span className="mono" style={{ fontSize: 9, letterSpacing: '.12em' }}>АЛМАТЫ · КАЗАХСТАН</span></aside>
-    <div className="auth-form-area"><div className="clerk-auth-card"><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} forceRedirectUrl={`${basePath}/admin`} /></div></div></div>;
+    <div className="auth-form-area"><div className="clerk-auth-card"><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} forceRedirectUrl={`${basePath}/admin`} fallback={<div role="status" style={{ padding: 24, color: "#244c43", textAlign: "center" }}>Загрузка формы регистрации…</div>} /></div></div></div>;
 }
 
 function ClerkCacheInvalidator() {
