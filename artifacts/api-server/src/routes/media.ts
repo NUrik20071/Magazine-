@@ -57,15 +57,40 @@ router.get("/media/:id", async (req, res): Promise<void> => {
     return;
   }
   await ensureMediaTable();
-  const { rows } = await pool.query("SELECT filename, mime_type, data FROM site_media WHERE id = $1", [id]);
+  const { rows } = await pool.query("SELECT filename, mime_type, data, byte_size FROM site_media WHERE id = $1", [id]);
   if (!rows[0]) {
     res.status(404).json({ error: "Файл не найден." });
     return;
   }
+  const data = rows[0].data as Buffer;
+  const size = Number(rows[0].byte_size);
   res.setHeader("Content-Type", rows[0].mime_type);
   res.setHeader("Content-Disposition", "inline");
   res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-  res.send(rows[0].data);
+  res.setHeader("Accept-Ranges", "bytes");
+  const range = req.headers.range;
+  if (range) {
+    const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+    if (!match || (!match[1] && !match[2])) {
+      res.setHeader("Content-Range", "bytes */" + size);
+      res.status(416).end();
+      return;
+    }
+    const start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
+    const end = match[2] ? Math.min(size - 1, Number(match[2])) : size - 1;
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || start >= size) {
+      res.setHeader("Content-Range", "bytes */" + size);
+      res.status(416).end();
+      return;
+    }
+    res.status(206);
+    res.setHeader("Content-Range", "bytes " + start + "-" + end + "/" + size);
+    res.setHeader("Content-Length", String(end - start + 1));
+    res.send(data.subarray(start, end + 1));
+    return;
+  }
+  res.setHeader("Content-Length", String(size));
+  res.send(data);
 });
 
 export default router;
