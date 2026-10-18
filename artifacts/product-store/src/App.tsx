@@ -145,7 +145,7 @@ function AdminHeaderLink() {
   return <Link className="quiet-link" href="/admin" data-testid="link-admin-panel">Панель управления</Link>;
 }
 
-function ShopHeader({ count, onCart, announcement }: { count: number; onCart: () => void; announcement: string }) {
+function ShopHeader({ count, onCart, announcement, content }: { count: number; onCart: () => void; announcement: string; content: StorefrontConfig['content'] }) {
   const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
   const { signOut } = useClerk();
@@ -164,10 +164,10 @@ function ShopHeader({ count, onCart, announcement }: { count: number; onCart: ()
   return <>
     <div className="announcement">{announcement}</div>
     <header className="header">
-      <Link href="/" className="brand" data-testid="link-home">тихо.<small>дом и повседневность</small></Link>
+      <Link href="/" className="brand" data-testid="link-home" data-element-id="home-brand">{content.siteName || "тихо."}<small>{content.siteTagline || "дом и повседневность"}</small></Link>
       <nav className="header-links" aria-label="Главная навигация">
-        <a className="quiet-link" href="#catalog">Каталог</a>
-        <a className="quiet-link" href="#about">О нас</a>
+        <a className="quiet-link" href="#catalog" data-element-id="nav-catalog">{content.navCatalogLabel || "Каталог"}</a>
+        <a className="quiet-link" href="#about" data-element-id="nav-about">{content.navAboutLabel || "О нас"}</a>
         <AdminHeaderLink />
         {!isLoaded ? <span className="account-loading" role="status">Проверяем аккаунт…</span> : isSignedIn && user ? <>
           <div className="account-profile" data-testid="account-profile" title={user.primaryEmailAddress?.emailAddress || displayName}>
@@ -177,9 +177,9 @@ function ShopHeader({ count, onCart, announcement }: { count: number; onCart: ()
           <button className="account-logout" onClick={() => void handleSignOut()} disabled={signingOut} data-testid="button-sign-out">
             <LogOut size={15} /><span>{signingOut ? 'Выходим…' : 'Выйти'}</span>
           </button>
-        </> : <Link className="quiet-link" href="/sign-in" data-testid="link-sign-in">Войти</Link>}
-        <button className="icon-button" onClick={onCart} data-testid="button-open-cart" aria-label="Открыть корзину">
-          <ShoppingBag size={18} strokeWidth={1.5} /><span>Корзина</span><span className="cart-count" data-testid="text-cart-count">{count}</span>
+        </> : <Link className="quiet-link" href="/sign-in" data-testid="link-sign-in">{content.signInLabel || "Войти"}</Link>}
+        <button className="icon-button" onClick={onCart} data-testid="button-open-cart" data-element-id="cart-toggle" aria-label="Открыть корзину">
+          <ShoppingBag size={18} strokeWidth={1.5} /><span>{content.cartLabel || "Корзина"}</span><span className="cart-count" data-testid="text-cart-count">{count}</span>
         </button>
       </nav>
     </header>
@@ -187,7 +187,7 @@ function ShopHeader({ count, onCart, announcement }: { count: number; onCart: ()
 }
 
 function ProductCard({ product, index, onAdd, onOpen }: { product: Product; index: number; onAdd: (product: Product) => void; onOpen: (product: Product) => void }) {
-  return <article className="product-card" data-testid={`card-product-${product.id}`} onClick={() => onOpen(product)} tabIndex={0} role="button" onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(product); } }} aria-label={`Открыть товар ${product.name}`}>
+  return <article className="product-card" data-element-id="product-card" data-testid={`card-product-${product.id}`> onClick={() => onOpen(product)} tabIndex={0} role="button" onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(product); } }} aria-label={`Открыть товар ${product.name}`}>
     <div className="product-photo">
       <img src={productImage(product, index)} alt={product.name} loading="lazy" data-testid={`img-product-${product.id}`} />
       {product.badge && <span className="badge">{product.badge}</span>}
@@ -227,7 +227,7 @@ function CartDrawer({ items, onClose, onQty, onRemove, onOrderSubmitted }: {
     } catch (error) { setOrderError(error instanceof Error ? error.message : 'Ошибка отправки. Попробуйте ещё раз.'); }
     finally { setSending(false); }
   }
-  return <div className="drawer-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <div className="drawer-backdrop" data-element-id="cart-panel" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <aside className="cart-drawer" role="dialog" aria-modal="true" aria-label="Корзина">
       <div className="drawer-head"><h2>Ваша корзина</h2><button className="plain-icon" onClick={onClose} aria-label="Закрыть корзину" data-testid="button-close-cart"><X /></button></div>
       {orderSuccess && <div className="order-success" role="status"><Check size={18} />{orderSuccess}</div>}
@@ -263,11 +263,15 @@ function CartDrawer({ items, onClose, onQty, onRemove, onOrderSubmitted }: {
 
 
 type StorefrontBlock = { id: string; type: 'text' | 'image' | 'video' | 'audio' | 'button' | 'embed'; title?: string; text?: string; label?: string; url?: string; mediaUrl?: string; background?: string; color?: string; width?: string; columns?: number; height?: string; fontSize?: string; titleSize?: string; padding?: string; radius?: number; textAlign?: 'left' | 'center' | 'right'; objectFit?: 'cover' | 'contain'; targetBlank?: boolean; animation?: string };
-type StorefrontConfig = { theme: { background: string; text: string; accent: string; accentText: string; cardBackground: string; gradient: string; heroLayout: string; font: string; headingFont: string; cardRadius: number; cardColumns: number; imageRatio: string; animation: string; animationDuration: number; colorAnimation: boolean }; content: { announcement: string; heroEyebrow: string; heroTitle: string; heroText: string; heroImage: string; heroImageLink: string; heroButtonText: string; storyTitle: string; storyText: string }; blocks: StorefrontBlock[] };
+type WorkflowTrigger = 'page-load' | 'click' | 'swipe-left' | 'swipe-right';
+type WorkflowCondition = 'always' | 'mobile' | 'desktop' | 'cart-has-items' | 'url-contains';
+type WorkflowAction = 'show' | 'hide' | 'toggle' | 'animate' | 'scroll' | 'navigate' | 'open-link' | 'play-video' | 'show-message';
+type WorkflowRule = { id: string; name: string; enabled: boolean; trigger: WorkflowTrigger; listenOn: string; condition: WorkflowCondition; conditionValue?: string; action: WorkflowAction; targetId?: string; value?: string };
+type StorefrontConfig = { theme: { background: string; text: string; accent: string; accentText: string; cardBackground: string; gradient: string; heroLayout: string; font: string; headingFont: string; cardRadius: number; cardColumns: number; imageRatio: string; animation: string; animationDuration: number; colorAnimation: boolean }; content: { siteName: string; siteTagline: string; navCatalogLabel: string; navAboutLabel: string; cartLabel: string; signInLabel: string; announcement: string; heroEyebrow: string; heroTitle: string; heroText: string; heroImage: string; heroImageLink: string; heroButtonText: string; heroButtonUrl: string; heroIndexText: string; heroNote: string; ticker1: string; ticker2: string; ticker3: string; catalogEyebrow: string; catalogTitle: string; searchPlaceholder: string; storyEyebrow: string; storyTitle: string; storyText: string; storyQuote: string; storyLinkText: string; storyLinkUrl: string; footerLocation: string; footerNote: string; copyrightLabel: string }; blocks: StorefrontBlock[]; workflows: WorkflowRule[] };
 const defaultStorefront: StorefrontConfig = {
   theme: { background: '#f5f1e8', text: '#244c43', accent: '#244c43', accentText: '#fffaf1', cardBackground: '#fffdf7', gradient: 'linear-gradient(135deg, #f5f1e8 0%, #e5ded0 100%)', font: 'DM Sans', headingFont: 'Cormorant Garamond', cardRadius: 8, cardColumns: 3, imageRatio: '4 / 5', animation: 'lift', animationDuration: 240, colorAnimation: false, heroLayout: 'split' },
-  content: { announcement: 'Доставка по Казахстану · бесплатно от 35 000 ₸', heroEyebrow: 'Маленькая коллекция для дома', heroTitle: 'Жить\nчуть тише.', heroText: 'Вещи, которые не требуют внимания — только становятся частью хорошего дня. Собираем их небольшими партиями.', heroImage: '/images/orbit-vase.png', heroImageLink: '', heroButtonText: 'Смотреть коллекцию', storyTitle: 'Не больше.\nЛучше.', storyText: '«Тихо» — маленький магазин вещей, которые приятно держать рядом.' },
-  blocks: [],
+  content: { siteName: 'тихо.', siteTagline: 'дом и повседневность', navCatalogLabel: 'Каталог', navAboutLabel: 'О нас', cartLabel: 'Корзина', signInLabel: 'Войти', announcement: 'Доставка по Казахстану · бесплатно от 35 000 ₸', heroEyebrow: 'Маленькая коллекция для дома', heroTitle: 'Жить\\nчуть тише.', heroText: 'Вещи, которые не требуют внимания — только становятся частью хорошего дня. Собираем их небольшими партиями.', heroImage: '/images/orbit-vase.png', heroImageLink: '', heroButtonText: 'Смотреть коллекцию', heroButtonUrl: '#catalog', heroIndexText: 'ПРЕДМЕТЫ С ХАРАКТЕРОМ · № 01', heroNote: 'Найдено и выбрано в Казахстане', ticker1: 'С любовью к деталям', ticker2: 'Небольшие тиражи', ticker3: 'Сделано на каждый день', catalogEyebrow: 'Наш выбор', catalogTitle: 'Предметы\\nна каждый день', searchPlaceholder: 'Найти вещь', storyEyebrow: 'Небольшое объяснение', storyTitle: 'Не больше.\\nЛучше.', storyText: '«Тихо» — маленький магазин вещей, которые приятно держать рядом.', storyQuote: '«Хорошая вещь не заполняет пространство — она делает его вашим»', storyLinkText: 'Вернуться к вещам', storyLinkUrl: '#catalog', footerLocation: 'Алматы · Казахстан', footerNote: 'Корзина хранится на устройстве', copyrightLabel: 'ТИХО' },
+  blocks: [], workflows: [],
 };
 function StorefrontBlocks({ blocks }: { blocks: StorefrontBlock[] }) {
   if (!blocks.length) return null;
@@ -293,7 +297,7 @@ function StorefrontBlocks({ blocks }: { blocks: StorefrontBlock[] }) {
     else if (block.type === 'embed') content = <iframe className="custom-block-embed" src={block.mediaUrl} title={block.title || 'Встроенный контент'} loading="lazy" allowFullScreen />;
     else content = <span>{block.label || block.title || 'Открыть'} <ExternalLink size={14} /></span>;
     const externalLink = /^https?:/.test(block.url || '');
-    return <div className={'custom-block custom-block-' + block.type} key={block.id} data-animation={block.animation || 'fade'} data-gradient={/gradient\s*\(/i.test(block.background || '') ? 'true' : 'false'} style={style}>
+    return <div className={'custom-block custom-block-' + block.type} key={block.id} data-element-id={block.id} data-block-id={block.id} data-animation={block.animation || 'fade'} data-gradient={/gradient\s*\(/i.test(block.background || '') ? 'true' : 'false'} style={style}>
       {block.url ? <a href={block.url} target={block.targetBlank || externalLink ? '_blank' : undefined} rel={block.targetBlank || externalLink ? 'noreferrer' : undefined}>{content}</a> : content}
     </div>;
   })}</section>;
