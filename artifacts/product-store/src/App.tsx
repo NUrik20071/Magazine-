@@ -411,7 +411,33 @@ function AdminGate() {
   const productsQuery = useListAdminProducts({
     query: { queryKey: getListAdminProductsQueryKey(), enabled: isLoaded && isSignedIn === true && tokenReady, retry: false },
   });
-  const [activeView, setActiveView] = useState<'overview' | 'products'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'products' | 'orders'>('overview');
+  const [orders, setOrders] = useState<any[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState('');
+  const [moderatingId, setModeratingId] = useState<number | null>(null);
+  useEffect(() => {
+    if (activeView !== 'orders' || !isLoaded || !isSignedIn) return;
+    let cancelled = false;
+    setOrdersLoading(true);
+    void getToken().then(token => fetch('/api/admin/orders', { headers: token ? { Authorization: 'Bearer ' + token } : {} }))
+      .then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Не удалось загрузить заказы'); return body; })
+      .then(body => { if (!cancelled) setOrders(Array.isArray(body) ? body : []); })
+      .catch(error => { if (!cancelled) setOrdersError(error instanceof Error ? error.message : 'Ошибка загрузки'); })
+      .finally(() => { if (!cancelled) setOrdersLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeView, getToken, isLoaded, isSignedIn]);
+  async function moderateOrder(id: number, status: 'approved' | 'rejected') {
+    setModeratingId(id);
+    try {
+      const token = await getToken();
+      const response = await fetch('/api/admin/orders/' + id + '/moderation', { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: JSON.stringify({ status }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Не удалось обновить заказ');
+      setOrders(current => current.map(order => order.id === id ? { ...order, ...body } : order));
+    } catch (error) { setOrdersError(error instanceof Error ? error.message : 'Ошибка модерации'); }
+    finally { setModeratingId(null); }
+  }
   const [editor, setEditor] = useState<Product | null | undefined>(undefined);
   const [filter, setFilter] = useState('');
   const [notice, setNotice] = useState('');
@@ -460,7 +486,7 @@ function AdminGate() {
     </aside>
     <main className="admin-main"><div className="admin-content">
       <div className="admin-top">
-        <div><div className="eyebrow">Тихо · администрирование</div><h1>{activeView === 'overview' ? 'Обзор магазина' : 'Каталог предметов'}</h1></div>
+        <div><div className="eyebrow">Тихо · администрирование</div><h1>{activeView === 'overview' ? 'Обзор магазина' : activeView === 'products' ? 'Каталог предметов' : 'Модерация заказов'}</h1></div>
         <div className="admin-top-actions">
           <div className="admin-account" title={user?.primaryEmailAddress?.emailAddress || adminDisplayName}>
             {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : <span className="admin-account-fallback"><UserRound size={15} /></span>}
@@ -472,7 +498,17 @@ function AdminGate() {
         </div>
       </div>
       {notice && <p role="status" style={{ color: '#486d53', fontSize: 12 }} data-testid="status-admin-notice">{notice}<button className="plain-icon" onClick={() => setNotice('')} aria-label="Закрыть сообщение"><X size={13} /></button></p>}
-      {activeView === 'overview' ? <>
+      {activeView === 'orders' ? <section className="orders-panel">
+        <div className="orders-intro"><span className="eyebrow">Ручная проверка</span><p>Подтверждение заказа не означает, что оплата уже получена.</p></div>
+        {ordersError && <p className="form-error" role="alert">{ordersError}</p>}
+        {ordersLoading ? <div className="skeleton" style={{height:160}} /> : orders.length ? <div className="order-list">{orders.map(order => <article className="order-card" key={order.id}>
+          <div className="order-card-head"><div><span className="order-number">ЗАКАЗ №{order.id}</span><small>{new Date(order.created_at).toLocaleString('ru-RU')}</small></div><span className={'status-pill order-status ' + order.status}>{order.status === 'pending' ? 'На проверке' : order.status === 'approved' ? 'Подтверждён' : 'Отклонён'}</span></div>
+          <div className="order-customer"><strong>{order.customer_name}</strong><span>{order.customer_phone}</span>{order.customer_email && <span>{order.customer_email}</span>}<span>{order.delivery_address}</span>{order.customer_note && <p>Комментарий: {order.customer_note}</p>}</div>
+          <div className="order-items">{(Array.isArray(order.items) ? order.items : []).map((item: any, index: number) => <div className="order-item" key={item.productId || index}><span>{item.name} × {item.quantity}</span><strong>{money(Number(item.price) * Number(item.quantity))}</strong></div>)}</div>
+          <div className="order-total"><span>Итого</span><strong>{money(Number(order.total_amount))}</strong></div>
+          {order.status === 'pending' && <div className="order-actions"><button className="primary-button" disabled={moderatingId === Number(order.id)} onClick={() => void moderateOrder(Number(order.id), 'approved')}><Check size={14} /> Подтвердить</button><button className="secondary-button" disabled={moderatingId === Number(order.id)} onClick={() => void moderateOrder(Number(order.id), 'rejected')}><Ban size={14} /> Отклонить</button></div>}
+        </article>)}</div> : <div className="empty-state">Пока нет заявок.<br/><span style={{fontSize:13}}>Здесь появятся новые заказы.</span></div>}
+      </section> : activeView === 'overview' ? <>
         <div className="stat-grid">
           <div className="stat-card" data-testid="stat-total-products"><span>Всего предметов</span><strong>{overview.totalProducts}</strong></div>
           <div className="stat-card" data-testid="stat-active-products"><span>В витрине</span><strong>{overview.activeProducts}</strong></div>
