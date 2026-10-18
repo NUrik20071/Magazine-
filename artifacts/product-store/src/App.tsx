@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { ClerkProvider, SignIn, SignUp, useAuth, useClerk } from '@clerk/react';
+import { setAuthTokenGetter } from '@workspace/api-client-react';
 import { ruRU } from '@clerk/localizations';
 import {
   getGetAdminOverviewQueryKey,
@@ -432,7 +433,12 @@ function BrandedSignUp() {
 
 function ClerkCacheInvalidator() {
   const { addListener } = useClerk();
+  const { getToken } = useAuth();
   const client = useQueryClient();
+  useEffect(() => {
+    setAuthTokenGetter(() => getToken());
+    return () => setAuthTokenGetter(null);
+  }, [getToken]);
   const previous = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     const unsubscribe = addListener(({ user }) => {
