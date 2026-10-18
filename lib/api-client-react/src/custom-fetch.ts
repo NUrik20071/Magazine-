@@ -13,7 +13,7 @@ let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
 
 export function setBaseUrl(url: string | null): void {
-  _baseUrl = url ? url.replace(/\\/+$/, "") : null;
+  _baseUrl = url ? url.replace(/\/+$/, "") : null;
 }
 
 export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
