@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from '@clerk/react';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
@@ -342,7 +342,7 @@ function Catalog() {
       <section className="hero">
         <div className="hero-copy">
           <span className="eyebrow">{storefront.content.heroEyebrow}</span>
-          <h1>{storefront.content.heroTitle.split("\n").map((line, i) => <React.Fragment key={i}>{i > 0 && <br />}{line}</React.Fragment>)}</h1>
+          <h1>{storefront.content.heroTitle.split("\n").map((line, i) => <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>)}</h1>
           <p>{storefront.content.heroText}</p>
           <a className="cta" href="#catalog" data-testid="link-explore-catalog">{storefront.content.heroButtonText} <ArrowDownRight size={16} /></a>
         </div>
