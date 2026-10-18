@@ -8,7 +8,7 @@ const defaults = {
   customSections: [] as Array<Record<string, unknown>>,
   customCode: { html: '', css: '', js: '' },
   theme: {
-    background: "#f5f1e8", text: "#244c43", accent: "#244c43", accentText: "#fffaf1",
+    background: "#f5f1e8", backgroundMediaUrl: "", backgroundMediaType: "image", text: "#244c43", accent: "#244c43", accentText: "#fffaf1",
     cardBackground: "#fffdf7", gradient: "linear-gradient(135deg, #f5f1e8 0%, #e5ded0 100%)",
     font: "DM Sans", headingFont: "Cormorant Garamond", heroLayout: "split", cardRadius: 8, cardColumns: 3,
     imageRatio: "4 / 5", animation: "lift", animationDuration: 240, colorAnimation: false,
@@ -85,6 +85,8 @@ function validConfig(value: unknown): value is Record<string, any> {
   for (const key of Object.keys(config.content)) if (typeof config.content[key] !== "string" || config.content[key].length > 4000) return false;
   if (config.blocks.length > 40 || !Array.isArray(config.workflows) || config.workflows.length > 50) return false;
   if (config.theme.heroLayout !== undefined && !["split", "image-left", "centered"].includes(config.theme.heroLayout)) return false;
+  if (config.theme.backgroundMediaUrl !== undefined && !validUrl(config.theme.backgroundMediaUrl)) return false;
+  if (config.theme.backgroundMediaType !== undefined && !["image", "video"].includes(config.theme.backgroundMediaType)) return false;
   const allowedTypes = new Set(["text", "image", "video", "audio", "button", "embed", "map", "carousel"]);
   const allowedAnimations = new Set(["fade", "lift", "glow", "float", "none", "reveal", "blur", "rotate", "parallax", "magnetic", "tilt"]);
   const allowedTriggers = new Set(["page-load", "click", "swipe-left", "swipe-right"]);
