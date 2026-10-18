@@ -630,9 +630,9 @@ function ProductEditor({ product, onClose, onSave, busy, onUploadMedia }: { prod
 }
 
 
-function AiCodeAssistant({ config, onApply, getToken, setNotice, setError }: {
+function AiBuilderAssistant({ config, onApply, getToken, setNotice, setError }: {
   config: StorefrontConfig;
-  onApply: (code: StorefrontConfig['customCode']) => void;
+  onApply: (result: { blocks: StorefrontBlock[]; customSections: CustomSection[]; theme: Partial<StorefrontConfig['theme']>; sectionOrder: SectionKey[] }) => void;
   getToken: () => Promise<string | null>;
   setNotice: (message: string) => void;
   setError: (message: string) => void;
@@ -643,31 +643,31 @@ function AiCodeAssistant({ config, onApply, getToken, setNotice, setError }: {
   const [prompt, setPrompt] = useState('');
   const [busy, setBusy] = useState(false);
   async function generate() {
-    if (!apiKey.trim() || !prompt.trim()) { setError('Вставь API-ключ и напиши, что нужно изменить.'); return; }
+    if (!apiKey.trim() || !prompt.trim()) { setError('Укажи API-ключ и опиши, какую секцию или анимацию нужно создать.'); return; }
     setBusy(true); setError(''); setNotice('');
     try {
       const token = await getToken();
-      const response = await fetch('/api/admin/ai/code', {
+      const response = await fetch('/api/admin/ai/builder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
-        body: JSON.stringify({ apiKey, endpoint, model, prompt, currentCode: config.customCode }),
+        body: JSON.stringify({ apiKey, endpoint, model, prompt, currentConfig: { blocks: config.blocks, customSections: config.customSections, theme: config.theme, sectionOrder: config.sectionOrder } }),
       });
       const body = await response.json();
-      if (!response.ok) throw new Error(body.error || 'AI не смог изменить код');
-      onApply(body.customCode);
-      setNotice('AI подготовил код. Проверь HTML/CSS/JS в предпросмотре и нажми «Сохранить и опубликовать». Ключ не сохраняется.');
+      if (!response.ok) throw new Error(body.error || 'AI не смог собрать блоки');
+      onApply(body);
+      setNotice('AI подготовил изменения в блоках. Они видны в предпросмотре, но не опубликованы — проверь и нажми «Опубликовать оформление». Предыдущая версия доступна через «Отменить AI-изменения».');
     } catch (error) { setError(error instanceof Error ? error.message : 'Ошибка AI API'); }
     finally { setBusy(false); }
   }
   return <div className="ai-code-form">
     <div className="editor-block-fields">
-      <label className="form-field">API endpoint<input value={endpoint} onChange={e => setEndpoint(e.target.value)} placeholder="https://api.openai.com/v1/chat/completions" /></label>
+      <label className="form-field">AI API endpoint<input value={endpoint} onChange={e => setEndpoint(e.target.value)} placeholder="https://api.openai.com/v1/chat/completions" /></label>
       <label className="form-field">Модель<input value={model} onChange={e => setModel(e.target.value)} placeholder="gpt-4o-mini" /></label>
-      <label className="form-field">API-ключ (только на этот запрос)<input type="password" autoComplete="off" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-..." /></label>
+      <label className="form-field">API-ключ (только на этот запрос)<input type="password" autoComplete="off" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="API key" /></label>
     </div>
-    <label className="form-field">Что нужно сделать? <textarea rows={4} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Например: сделай видео-фон на первом экране, добавь адаптивную секцию с карточками и плавное появление." /></label>
-    <div className="code-studio-actions"><button type="button" className="primary-button" onClick={() => void generate()} disabled={busy}>{busy ? 'AI пишет код…' : 'Сгенерировать / изменить код'}</button><button type="button" className="secondary-button" onClick={() => setApiKey('')}>Очистить API-ключ</button></div>
-    <small className="editor-help">Ключ не записывается в базу и не попадает в опубликованный сайт. Код после генерации нужно проверить: AI может ошибаться.</small>
+    <label className="form-field">Что собрать? <textarea rows={4} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Например: создай секцию на весь экран с видео-каруселью, крупным заголовком, reveal-анимацией и синим градиентом." /></label>
+    <div className="code-studio-actions"><button type="button" className="primary-button" onClick={() => void generate()} disabled={busy}>{busy ? 'AI собирает блоки…' : 'Собрать через AI'}</button><button type="button" className="secondary-button" onClick={() => setApiKey('')}>Очистить API-ключ</button></div>
+    <small className="editor-help">AI меняет только структуру блоков, секции, порядок и визуальную тему — не исполняет сгенерированный JavaScript. Ключ не сохраняется. Изменения сначала появляются в предпросмотре; публикация отдельная.</small>
   </div>;
 }
 
@@ -676,6 +676,7 @@ function StorefrontSettingsEditor() {
   const [config, setConfig] = useState<StorefrontConfig>(defaultStorefront);
   const [resolvingBlock, setResolvingBlock] = useState<number | null>(null);
   const [sourceNotice, setSourceNotice] = useState('');
+  const [undoConfig, setUndoConfig] = useState<StorefrontConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -814,15 +815,8 @@ function StorefrontSettingsEditor() {
         </article>)}
         {!config.workflows.length && <div className="editor-empty">Пример: «Когда нажали на кнопку → если открыт на телефоне → прокрутить к каталогу».</div>}
       </div>
-      <div className="editor-group editor-group-wide code-studio"><div className="editor-blocks-heading"><div><h3>Полный редактор HTML / CSS / JavaScript</h3><p className="editor-help">Код применяется к публичному сайту после публикации. Здесь можно создавать фон-видео, собственные секции, карточки, эффекты и полностью менять разметку. JavaScript выполняется на публичной странице — вставляйте только доверенный код.</p></div></div>
-        <label className="form-field code-label">HTML — разметка и новые секции<textarea spellCheck={false} rows={12} value={config.customCode.html} onChange={e => setConfig(s => ({...s,customCode:{...s.customCode,html:e.target.value}}))} placeholder={'<section class="my-section"><h1>Мой сайт</h1><video autoplay muted loop playsinline src="/api/media/123"></video></section>'} /></label>
-        <label className="form-field code-label">CSS — любой стиль, фон, фото/видео-фон, карточки, адаптивность<textarea spellCheck={false} rows={14} value={config.customCode.css} onChange={e => setConfig(s => ({...s,customCode:{...s.customCode,css:e.target.value}}))} placeholder={'.my-section { min-height: 70vh; background: url("/api/media/123") center/cover; }\n.product-card { border-radius: 24px; }'} /></label>
-        <label className="form-field code-label">JavaScript — логика и интерактивность<textarea spellCheck={false} rows={12} value={config.customCode.js} onChange={e => setConfig(s => ({...s,customCode:{...s.customCode,js:e.target.value}}))} placeholder={'document.querySelectorAll(".my-section").forEach(section => { section.addEventListener("click", () => console.log("clicked")); });'} /></label>
-        <div className="code-studio-actions"><button type="button" className="secondary-button" onClick={() => setConfig(s => ({...s,customCode:{html:'',css:'',js:''}}))}>Очистить весь код</button><button type="button" className="secondary-button" onClick={() => setSourceNotice('Код редактируется выше. Предпросмотр изолирован и не меняет опубликованный сайт до сохранения.')}>Как работает предпросмотр</button></div>
-        <div className="code-preview"><div className="editor-live-preview-head"><strong>ПРЕДПРОСМОТР HTML / CSS / JS</strong><span>Изолированный iframe</span></div><iframe title="Предпросмотр пользовательского кода" sandbox="allow-scripts" srcDoc={buildCodePreview(config.customCode)} /></div>
-      </div>
-      <div className="editor-group editor-group-wide ai-code-assistant"><h3>AI-помощник по коду</h3><p className="editor-help">Укажи OpenAI-совместимый API, модель и ключ. Ключ используется только на время запроса и не сохраняется в настройках сайта. Поддерживаются OpenAI, OpenRouter, Groq и DeepSeek.</p>
-        <AiCodeAssistant config={config} onApply={(customCode) => setConfig(s => ({...s,customCode}))} getToken={getToken} setNotice={setSourceNotice} setError={setError} />
+      <div className="editor-group editor-group-wide ai-code-assistant"><div className="editor-blocks-heading"><div><h3>AI-конструктор блоков</h3><p className="editor-help">Опиши результат словами. AI соберёт секции, блоки, порядок и тему — без отдельной командной строки и без исполнения сырого кода.</p></div>{undoConfig && <button className="secondary-button" onClick={() => { setConfig(undoConfig); setUndoConfig(null); setSourceNotice('Предыдущая версия конструктора восстановлена.'); }}>Отменить AI-изменения</button>}</div>
+        <AiBuilderAssistant config={config} onApply={(result) => { setUndoConfig(config); setConfig(current => ({ ...current, blocks: result.blocks, customSections: result.customSections, theme: { ...current.theme, ...result.theme }, sectionOrder: result.sectionOrder })); }} getToken={getToken} setNotice={setSourceNotice} setError={setError} />
       </div>
       <div className="editor-group editor-group-wide builder-section-manager">
         <div className="editor-blocks-heading"><div><h3>Свободные секции — создавай и удаляй</h3><p className="editor-help">Каждая секция независимая: название, фон, анимация, собственные блоки и порядок. Можно оставить все секции выключенными — страница будет пустой.</p></div><button className="primary-button" onClick={addCustomSection}>+ Создать секцию</button></div>
