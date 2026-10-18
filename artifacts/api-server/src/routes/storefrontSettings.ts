@@ -5,6 +5,7 @@ import { requireAdmin } from "../middlewares/adminAuth";
 const router: IRouter = Router();
 
 const defaults = {
+  customCode: { html: '', css: '', js: '' },
   theme: {
     background: "#f5f1e8", text: "#244c43", accent: "#244c43", accentText: "#fffaf1",
     cardBackground: "#fffdf7", gradient: "linear-gradient(135deg, #f5f1e8 0%, #e5ded0 100%)",
@@ -52,6 +53,10 @@ function validConfig(value: unknown): value is Record<string, any> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const config = value as Record<string, any>;
   if (!config.theme || typeof config.theme !== "object" || !config.content || typeof config.content !== "object" || !Array.isArray(config.blocks)) return false;
+  if (config.customCode !== undefined) {
+    if (!config.customCode || typeof config.customCode !== 'object') return false;
+    for (const key of ['html', 'css', 'js']) if (typeof config.customCode[key] !== 'string' || config.customCode[key].length > 60000) return false;
+  }
   if (config.adminTheme !== undefined) {
     const admin = config.adminTheme;
     if (!admin || typeof admin !== "object") return false;
