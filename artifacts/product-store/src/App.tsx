@@ -408,10 +408,12 @@ function AdminGate() {
 
   if (isLoading) return <div className="admin-layout"><div className="admin-sidebar"><span className="brand">тихо.<small>управление</small></span></div><div className="admin-main"><div className="admin-content"><div className="skeleton" style={{ height: 60, marginBottom: 28 }} /><div className="stat-grid">{[1, 2, 3, 4].map((i) => <div key={i} className="skeleton" style={{ height: 120 }} />)}</div><div className="skeleton" style={{ height: 260 }} /></div></div></div>;
   if (isError || !overview) return <div className="admin-layout"><div className="gate-card">
-    <span className="eyebrow">Закрытый раздел</span>
-    <h1>Вход в магазин</h1>
-    <p>После входа через Google панель откроется только для подтверждённого email из списка администратора. Если вы видите этот экран после входа, проверьте, что выбран правильный Google-аккаунт.</p>
-    <Link className="cta" href="/sign-in" data-testid="link-admin-sign-in">Войти в аккаунт <ArrowRight size={15} /></Link>
+    <span className="eyebrow">{isSignedIn ? 'Доступ ограничен' : 'Закрытый раздел'}</span>
+    <h1>{isSignedIn ? 'Нет прав администратора' : 'Вход в магазин'}</h1>
+    <p>{isSignedIn
+      ? 'Вы вошли в аккаунт, но у него нет подтверждённого доступа к панели управления. Обычный магазин доступен без прав администратора.'
+      : 'Панель управления доступна только администраторам. Войдите в аккаунт, которому выдан доступ.'}</p>
+    {!isSignedIn && <Link className="cta" href="/sign-in" data-testid="link-admin-sign-in">Войти в аккаунт <ArrowRight size={15} /></Link>}
     <button className="secondary-button" style={{ marginLeft: 8 }} onClick={() => { void overviewQuery.refetch(); void productsQuery.refetch(); }} data-testid="button-retry-admin">Проверить доступ</button>
     <div className="gate-actions" style={{ marginTop: 17 }}>
       <Link className="quiet-link" href="/" data-testid="link-return-store">Вернуться в магазин</Link>
