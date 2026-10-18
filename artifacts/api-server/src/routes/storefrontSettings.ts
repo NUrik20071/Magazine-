@@ -103,7 +103,16 @@ function validConfig(value: unknown): value is Record<string, any> {
 router.get("/storefront/settings", async (_req, res): Promise<void> => {
   await ensureSettingsTable();
   const { rows } = await pool.query("SELECT config FROM storefront_settings WHERE id = 1");
-  res.json(rows[0]?.config ?? defaults);
+  const config = rows[0]?.config ?? defaults;
+  const { adminTheme: _privateAdminTheme, ...publishedConfig } = config;
+  res.setHeader("Cache-Control", "public, max-age=30, stale-while-revalidate=60");
+  res.json(publishedConfig);
+});
+
+router.get("/admin/storefront/settings", requireAdmin, async (_req, res): Promise<void> => {
+  await ensureSettingsTable();
+  const { rows } = await pool.query("SELECT config, updated_at FROM storefront_settings WHERE id = 1");
+  res.json({ config: rows[0]?.config ?? defaults, updatedAt: rows[0]?.updated_at ?? null });
 });
 
 router.put("/admin/storefront/settings", requireAdmin, async (req, res): Promise<void> => {

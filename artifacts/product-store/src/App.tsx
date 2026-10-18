@@ -311,6 +311,22 @@ function mediaEmbedUrl(value: string, type: StorefrontBlock['type']): string {
   } catch { /* Keep relative and local asset paths unchanged. */ }
   return normalized;
 }
+function isPinterestSource(value: string): boolean {
+  try { const host = new URL(normalizeSourceUrl(value)).hostname.toLowerCase(); return ['pin.it', 'pinterest.com', 'www.pinterest.com'].includes(host); }
+  catch { return /^(?:https?:\/\/)?(?:www\.)?(?:pin\.it|pinterest\.com)\//i.test(value.trim()); }
+}
+function PinterestEmbed({ url, title }: { url: string; title: string }) {
+  useEffect(() => {
+    const src = 'https://assets.pinterest.com/js/pinit.js';
+    const existing = document.querySelector<HTMLScriptElement>('script[src="' + src + '"]');
+    if (existing) { (window as any).PinUtils?.build?.(); return; }
+    const script = document.createElement('script');
+    script.src = src; script.async = true; script.defer = true;
+    script.onload = () => (window as any).PinUtils?.build?.();
+    document.body.appendChild(script);
+  }, [url]);
+  return <div className="pinterest-embed"><a data-pin-do="embedPin" href={normalizeSourceUrl(url)}>{title || 'Открыть публикацию Pinterest'}</a></div>;
+}
 function StorefrontBlocks({ blocks }: { blocks: StorefrontBlock[] }) {
   if (!blocks.length) return null;
   return <section className="custom-blocks">{blocks.map((block) => {
@@ -331,9 +347,11 @@ function StorefrontBlocks({ blocks }: { blocks: StorefrontBlock[] }) {
     if (block.type === 'text') content = <div className="custom-block-copy"><h2 style={{ fontSize: block.titleSize && block.titleSize !== 'inherit' ? block.titleSize : undefined }}>{block.title}</h2><p>{block.text}</p></div>;
     else if (block.type === 'image') content = block.mediaUrl ? <img className="custom-block-media" style={{ objectFit: block.objectFit || 'contain', maxHeight: mediaHeight }} src={normalizeSourceUrl(block.mediaUrl)} alt={block.title || ''} /> : <div className="custom-block-placeholder">Выберите изображение из галереи или вставьте прямую ссылку.</div>;
     else if (block.type === 'video' && (youtubeVideoId(block.mediaUrl || '') || /^(?:https?:\/\/)?(?:www\.)?(?:t\.me|telegram\.me)\//i.test((block.mediaUrl || '').trim()))) content = <iframe className="custom-block-embed" src={mediaEmbedUrl(block.mediaUrl || '', 'embed')} title={block.title || 'Видео'} loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen />;
+    else if (block.type === 'video' && isPinterestSource(block.mediaUrl || '')) content = <PinterestEmbed url={block.mediaUrl || ''} title={block.title || 'Pinterest'} />;
     else if (block.type === 'video') content = block.mediaUrl ? <video className="custom-block-media" style={{ objectFit: block.objectFit || 'contain', maxHeight: mediaHeight }} src={normalizeSourceUrl(block.mediaUrl)} controls playsInline /> : <div className="custom-block-placeholder">Загрузите видео или вставьте ссылку на MP4/WebM, YouTube или публичный пост Telegram.</div>;
     else if (block.type === 'audio') content = block.mediaUrl ? <audio src={normalizeSourceUrl(block.mediaUrl)} controls /> : <div className="custom-block-placeholder">Загрузите аудио или вставьте прямую ссылку на музыкальный файл.</div>;
-    else if (block.type === 'embed') content = block.mediaUrl ? <iframe className="custom-block-embed" src={mediaEmbedUrl(block.mediaUrl, 'embed')} title={block.title || 'Встроенный контент'} loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen /> : <div className="custom-block-placeholder">Вставьте ссылку на YouTube, Telegram или другой источник в настройках блока.</div>;
+    else if (block.type === 'embed' && block.mediaUrl && isPinterestSource(block.mediaUrl)) content = <PinterestEmbed url={block.mediaUrl} title={block.title || 'Pinterest'} />;
+    else if (block.type === 'embed') content = block.mediaUrl ? <iframe className="custom-block-embed" src={mediaEmbedUrl(block.mediaUrl, 'embed')} title={block.title || 'Встроенный контент'} loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen /> : <div className="custom-block-placeholder">Вставьте ссылку на YouTube, Telegram, Pinterest или другой источник в настройках блока.</div>;
     else if (block.type === 'map') content = block.mediaUrl ? <div className="custom-block-map-wrap"><iframe className="custom-block-map" src={mediaEmbedUrl(block.mediaUrl, 'map')} title={block.title || 'Карта 2ГИС'} loading="lazy" allowFullScreen /><a href={normalizeSourceUrl(block.mediaUrl)} target="_blank" rel="noreferrer">Открыть карту в источнике <ExternalLink size={14} /></a></div> : <div className="custom-block-placeholder">Вставьте ссылку на виджет карты 2ГИС.</div>;
     else content = <span>{block.label || block.title || 'Открыть'} <ExternalLink size={14} /></span>;
     const normalizedBlockUrl = normalizeSourceUrl(block.url || '');
@@ -571,11 +589,13 @@ function ProductEditor({ product, onClose, onSave, busy, onUploadMedia }: { prod
 function StorefrontSettingsEditor() {
   const { getToken } = useAuth();
   const [config, setConfig] = useState<StorefrontConfig>(defaultStorefront);
+  const [resolvingBlock, setResolvingBlock] = useState<number | null>(null);
+  const [sourceNotice, setSourceNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
-  useEffect(() => { fetch('/api/storefront/settings').then((r) => r.json()).then((data) => setConfig({ ...defaultStorefront, ...data, theme: { ...defaultStorefront.theme, ...(data.theme || {}) }, adminTheme: { ...defaultStorefront.adminTheme, ...(data.adminTheme || {}) }, sections: { ...defaultStorefront.sections, ...(data.sections || {}) }, sectionOrder: Array.isArray(data.sectionOrder) ? data.sectionOrder : defaultStorefront.sectionOrder, content: { ...defaultStorefront.content, ...(data.content || {}) }, blocks: Array.isArray(data.blocks) ? data.blocks : [], workflows: Array.isArray(data.workflows) ? data.workflows : [] })).catch(() => setError('Не удалось загрузить настройки')).finally(() => setLoading(false)); }, []);
+  useEffect(() => { let cancelled = false; void getToken().then(token => fetch('/api/admin/storefront/settings', { headers: token ? { Authorization: 'Bearer ' + token } : {} })).then(r => r.ok ? r.json() : Promise.reject(new Error('Нет доступа к настройкам'))).then(payload => { if (cancelled) return; const data = payload.config; if (!data) throw new Error('Настройки не найдены'); setConfig({ ...defaultStorefront, ...data, theme: { ...defaultStorefront.theme, ...(data.theme || {}) }, adminTheme: { ...defaultStorefront.adminTheme, ...(data.adminTheme || {}) }, sections: { ...defaultStorefront.sections, ...(data.sections || {}) }, sectionOrder: Array.isArray(data.sectionOrder) ? data.sectionOrder : defaultStorefront.sectionOrder, content: { ...defaultStorefront.content, ...(data.content || {}) }, blocks: Array.isArray(data.blocks) ? data.blocks : [], workflows: Array.isArray(data.workflows) ? data.workflows : [] }); }).catch(() => { if (!cancelled) setError('Не удалось загрузить настройки'); }).finally(() => { if (!cancelled) setLoading(false); }); return () => { cancelled = true; }; }, [getToken]);
   const updateTheme = (key: keyof StorefrontConfig['theme'], value: string | number | boolean) => setConfig((c) => ({ ...c, theme: { ...c.theme, [key]: value } }));
   const updateContent = (key: keyof StorefrontConfig['content'], value: string) => setConfig((c) => ({ ...c, content: { ...c.content, [key]: value } }));
   const updateAdminTheme = (key: keyof AdminTheme, value: string | number) => setConfig((c) => ({ ...c, adminTheme: { ...c.adminTheme, [key]: value } }));
@@ -584,6 +604,25 @@ function StorefrontSettingsEditor() {
   async function uploadMedia(file: File): Promise<string> { if (file.size > 25 * 1024 * 1024) throw new Error('Максимальный размер файла — 25 МБ.'); const token = await getToken(); const response = await fetch('/api/admin/media?filename=' + encodeURIComponent(file.name), { method: 'POST', headers: { 'Content-Type': file.type, ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: file }); const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Не удалось загрузить медиа'); return body.url as string; }
   async function uploadHeroImage(file?: File) { if (!file) return; try { updateContent('heroImage', await uploadMedia(file)); } catch (error) { setError(error instanceof Error ? error.message : 'Не удалось загрузить изображение'); } }
   async function uploadBlockMedia(index: number, file?: File) { if (!file) return; try { updateBlock(index, 'mediaUrl', await uploadMedia(file)); } catch (error) { setError(error instanceof Error ? error.message : 'Не удалось загрузить медиа'); } }
+  async function resolveBlockSource(index: number) {
+    const source = normalizeSourceUrl(config.blocks[index]?.mediaUrl || '');
+    if (!source) { setError('Сначала вставьте публичную ссылку на источник.'); return; }
+    setResolvingBlock(index); setError(''); setSourceNotice('');
+    try {
+      const response = await fetch('/api/media/resolve?url=' + encodeURIComponent(source));
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Не удалось получить источник');
+      const block = config.blocks[index];
+      const resolved = block.type === 'image' ? (body.imageUrl || body.mediaUrl || body.finalUrl)
+        : block.type === 'video' ? (['youtube', 'telegram', 'pinterest'].includes(body.provider) ? body.embedUrl : (body.videoUrl || body.mediaUrl || body.finalUrl))
+        : block.type === 'audio' ? (body.audioUrl || body.mediaUrl || body.finalUrl)
+        : block.type === 'map' ? body.finalUrl : (body.embedUrl || body.finalUrl);
+      if (resolved) updateBlock(index, 'mediaUrl', resolved);
+      if (body.title && !block.title) updateBlock(index, 'title', body.title);
+      setSourceNotice(body.note || ('Источник распознан: ' + body.provider + '. Проверьте предпросмотр и сохраните страницу.'));
+    } catch (error) { setError(error instanceof Error ? error.message : 'Не удалось извлечь источник'); }
+    finally { setResolvingBlock(null); }
+  }
   const updateBlock = (index: number, key: keyof StorefrontBlock, value: string | number | boolean) => setConfig((c) => ({ ...c, blocks: c.blocks.map((b, i) => i === index ? { ...b, [key]: value } : b) }));
   async function save() {
     setSaving(true); setError(''); setSaved(false);
@@ -614,7 +653,7 @@ function StorefrontSettingsEditor() {
   if (loading) return <div className="skeleton" style={{ height: 220 }} />;
   return <section className="visual-editor">
     <div className="visual-editor-heading"><div><span className="eyebrow">Редактор сайта</span><h2>Оформление витрины</h2><p>Изменения сохраняются в базе данных и сразу применяются к публичному сайту.</p></div><button className="primary-button" onClick={() => void save()} disabled={saving}>{saving ? 'Сохраняем…' : 'Опубликовать оформление'}</button></div>
-    {error && <p className="form-error" role="alert">{error}</p>}{saved && <p className="editor-saved" role="status">Оформление сохранено.</p>}
+    {error && <p className="form-error" role="alert">{error}</p>}{sourceNotice && <p className="editor-saved" role="status">{sourceNotice}</p>}{saved && <p className="editor-saved" role="status">Оформление сохранено.</p>}
     <div className="visual-editor-grid">
       <div className="editor-group editor-group-wide"><h3>Название сайта и текст всей страницы</h3><p className="editor-help">Здесь меняется текст от шапки до самого низа сайта. Предпросмотр обновляется сразу.</p><div className="editor-block-fields">
 <label className="form-field">Название сайта<input value={config.content.siteName} onChange={e => updateContent('siteName', e.target.value)} /></label>
@@ -648,7 +687,7 @@ function StorefrontSettingsEditor() {
           <label className="form-field">Заголовок / подпись<input value={block.title || ''} onChange={e => updateBlock(index, 'title', e.target.value)} /></label>
           {block.type === 'text' && <label className="form-field">Текст<textarea rows={3} value={block.text || ''} onChange={e => updateBlock(index, 'text', e.target.value)} /></label>}
           {block.type === 'button' && <label className="form-field">Текст кнопки<input value={block.label || ''} onChange={e => updateBlock(index, 'label', e.target.value)} /></label>}
-          {(['image', 'video', 'audio', 'embed', 'map'] as string[]).includes(block.type) && <label className="form-field">URL медиа / встраивания<input value={block.mediaUrl || ''} onChange={e => updateBlock(index, 'mediaUrl', e.target.value)} onBlur={e => updateBlock(index, 'mediaUrl', normalizeSourceUrl(e.target.value))} placeholder={block.type === 'map' ? 'Ссылка на виджет / карту 2ГИС' : 'site.com/file.mp4 — https необязателен'} />{(['image', 'video', 'audio'] as string[]).includes(block.type) && <input aria-label="Выбрать медиа из галереи" type="file" accept={block.type === 'image' ? 'image/*' : block.type === 'video' ? 'video/mp4,video/webm,video/quicktime' : 'audio/mpeg,audio/mp4,audio/ogg,audio/wav,audio/webm'} onChange={e => { void uploadBlockMedia(index, e.target.files?.[0]); e.currentTarget.value = ''; }} />}</label>}
+          {(['image', 'video', 'audio', 'embed', 'map'] as string[]).includes(block.type) && <label className="form-field">URL медиа / встраивания<input value={block.mediaUrl || ''} onChange={e => updateBlock(index, 'mediaUrl', e.target.value)} onBlur={e => updateBlock(index, 'mediaUrl', normalizeSourceUrl(e.target.value))} placeholder={block.type === 'map' ? 'Ссылка на виджет / карту 2ГИС' : 'site.com/file.mp4 — https необязателен'} />{(['image', 'video', 'audio'] as string[]).includes(block.type) && <input aria-label="Выбрать медиа из галереи" type="file" accept={block.type === 'image' ? 'image/*' : block.type === 'video' ? 'video/mp4,video/webm,video/quicktime' : 'audio/mpeg,audio/mp4,audio/ogg,audio/wav,audio/webm'} onChange={e => { void uploadBlockMedia(index, e.target.files?.[0]); e.currentTarget.value = ''; }} />}<button type="button" className="secondary-button" onClick={() => void resolveBlockSource(index)} disabled={resolvingBlock !== null}>{resolvingBlock === index ? 'Извлекаем…' : 'Извлечь источник / превью'}</button><small className="editor-help">Публичные ссылки Telegram, pin.it / Pinterest, YouTube и 2ГИС. Закрытые публикации и защищённые файлы не извлекаются.</small></label>}
           <label className="form-field">Ссылка при нажатии<input value={block.url || ''} onChange={e => updateBlock(index, 'url', e.target.value)} onBlur={e => updateBlock(index, 'url', normalizeSourceUrl(e.target.value))} placeholder="example.com или #catalog" /></label>
           <label className="form-field">Фон / градиент<input value={block.background || ''} onChange={e => updateBlock(index, 'background', e.target.value)} placeholder="#ffffff или linear-gradient(...)" /></label>
           <label className="form-field">Цвет текста<input value={block.color || ''} onChange={e => updateBlock(index, 'color', e.target.value)} placeholder="#244c43" /></label>
@@ -720,7 +759,7 @@ function AdminGate() {
   const [signingOut, setSigningOut] = useState(false);
   const adminDisplayName = user?.fullName || user?.firstName || user?.primaryEmailAddress?.emailAddress || 'Администратор';
   async function uploadMedia(file: File): Promise<string> { if (file.size > 25 * 1024 * 1024) throw new Error('Максимальный размер файла — 25 МБ.'); const token = await getToken(); const response = await fetch('/api/admin/media?filename=' + encodeURIComponent(file.name), { method: 'POST', headers: { 'Content-Type': file.type, ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: file }); const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Не удалось загрузить медиа'); return body.url as string; }
-  useEffect(() => { let cancelled = false; fetch('/api/storefront/settings').then((response) => response.ok ? response.json() : null).then((data) => { if (cancelled || !data) return; const theme = { ...defaultStorefront.adminTheme, ...(data.adminTheme || {}) }; const root = document.documentElement; root.style.setProperty('--admin-background', theme.background); root.style.setProperty('--admin-sidebar', theme.sidebar); root.style.setProperty('--admin-accent', theme.accent); root.style.setProperty('--admin-text', theme.text); root.style.setProperty('--admin-surface', theme.surface); root.style.setProperty('--admin-font', '"' + theme.font + '", sans-serif'); root.style.setProperty('--admin-radius', theme.radius + 'px'); }).catch(() => undefined); return () => { cancelled = true; }; }, []);
+  useEffect(() => { let cancelled = false; void getToken().then(token => fetch('/api/admin/storefront/settings', { headers: token ? { Authorization: 'Bearer ' + token } : {} })).then(response => response.ok ? response.json() : null).then(payload => { const data = payload?.config; if (cancelled || !data) return; const theme = { ...defaultStorefront.adminTheme, ...(data.adminTheme || {}) }; const root = document.documentElement; root.style.setProperty('--admin-background', theme.background); root.style.setProperty('--admin-sidebar', theme.sidebar); root.style.setProperty('--admin-accent', theme.accent); root.style.setProperty('--admin-text', theme.text); root.style.setProperty('--admin-surface', theme.surface); root.style.setProperty('--admin-font', '"' + theme.font + '", sans-serif'); root.style.setProperty('--admin-radius', theme.radius + 'px'); }).catch(() => undefined); return () => { cancelled = true; }; }, [getToken]);
   async function handleAdminSignOut() {
     setSigningOut(true);
     try {
@@ -748,6 +787,8 @@ function AdminGate() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState('');
   const [moderatingId, setModeratingId] = useState<number | null>(null);
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [orderDraft, setOrderDraft] = useState<any>(null);
   useEffect(() => {
     if (activeView !== 'orders' || !isLoaded || !isSignedIn) return;
     let cancelled = false;
@@ -759,6 +800,24 @@ function AdminGate() {
       .finally(() => { if (!cancelled) setOrdersLoading(false); });
     return () => { cancelled = true; };
   }, [activeView, getToken, isLoaded, isSignedIn]);
+  function beginEditOrder(order: any) {
+    setEditingOrderId(Number(order.id));
+    setOrderDraft({ customerName: order.customer_name || '', phone: order.customer_phone || '', email: order.customer_email || '', address: order.delivery_address || '', note: order.customer_note || '', items: (Array.isArray(order.items) ? order.items : []).map((item: any) => ({ productId: Number(item.productId), quantity: Number(item.quantity), name: item.name, price: Number(item.price) })) });
+    setOrdersError('');
+  }
+  async function saveOrderEdit() {
+    if (editingOrderId === null || !orderDraft) return;
+    setModeratingId(editingOrderId); setOrdersError('');
+    try {
+      const token = await getToken();
+      const response = await fetch('/api/admin/orders/' + editingOrderId, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: JSON.stringify(orderDraft) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Не удалось сохранить заказ');
+      setOrders(current => current.map(order => Number(order.id) === editingOrderId ? body : order));
+      setEditingOrderId(null); setOrderDraft(null);
+    } catch (error) { setOrdersError(error instanceof Error ? error.message : 'Ошибка сохранения заказа'); }
+    finally { setModeratingId(null); }
+  }
   async function moderateOrder(id: number, status: 'approved' | 'rejected') {
     setModeratingId(id);
     try {
@@ -836,10 +895,23 @@ function AdminGate() {
         <div className="orders-intro"><span className="eyebrow">Ручная проверка</span><p>Подтверждение заказа не означает, что оплата уже получена.</p></div>
         {ordersError && <p className="form-error" role="alert">{ordersError}</p>}
         {ordersLoading ? <div className="skeleton" style={{height:160}} /> : orders.length ? <div className="order-list">{orders.map(order => <article className="order-card" key={order.id}>
-          <div className="order-card-head"><div><span className="order-number">ЗАКАЗ №{order.id}</span><small>{new Date(order.created_at).toLocaleString('ru-RU')}</small></div><span className={'status-pill order-status ' + order.status}>{order.status === 'pending' ? 'На проверке' : order.status === 'approved' ? 'Подтверждён' : 'Отклонён'}</span></div>
+          <div className="order-card-head"><div><span className="order-number">ЗАКАЗ №{order.id}</span><small>{new Date(order.created_at).toLocaleString('ru-RU')}</small></div><div className="order-card-tools"><span className={'status-pill order-status ' + order.status}>{order.status === 'pending' ? 'На проверке' : order.status === 'approved' ? 'Подтверждён' : 'Отклонён'}</span><button className="secondary-button" onClick={() => editingOrderId === Number(order.id) ? (setEditingOrderId(null), setOrderDraft(null)) : beginEditOrder(order)}>{editingOrderId === Number(order.id) ? 'Отмена' : 'Редактировать'}</button></div></div>
           <div className="order-customer"><strong>{order.customer_name}</strong><span>{order.customer_phone}</span>{order.customer_email && <span>{order.customer_email}</span>}<span>{order.delivery_address}</span>{order.customer_note && <p>Комментарий: {order.customer_note}</p>}</div>
           <div className="order-items">{(Array.isArray(order.items) ? order.items : []).map((item: any, index: number) => <div className="order-item" key={item.productId || index}><span>{item.name} × {item.quantity}</span><strong>{money(Number(item.price) * Number(item.quantity))}</strong></div>)}</div>
           <div className="order-total"><span>Итого</span><strong>{money(Number(order.total_amount))}</strong></div>
+          {editingOrderId === Number(order.id) && orderDraft && <div className="order-edit-form">
+            <h4>Редактирование заказа №{order.id}</h4>
+            <div className="order-edit-fields">
+              <label className="form-field">Имя клиента<input value={orderDraft.customerName} onChange={e => setOrderDraft((d: any) => ({...d, customerName:e.target.value}))} /></label>
+              <label className="form-field">Телефон<input value={orderDraft.phone} onChange={e => setOrderDraft((d: any) => ({...d, phone:e.target.value}))} /></label>
+              <label className="form-field">Email<input value={orderDraft.email} onChange={e => setOrderDraft((d: any) => ({...d, email:e.target.value}))} /></label>
+              <label className="form-field">Адрес доставки<input value={orderDraft.address} onChange={e => setOrderDraft((d: any) => ({...d, address:e.target.value}))} /></label>
+              <label className="form-field order-edit-note">Комментарий<textarea rows={2} value={orderDraft.note} onChange={e => setOrderDraft((d: any) => ({...d, note:e.target.value}))} /></label>
+            </div>
+            <h5>Количество товаров (цены заказа сохраняются)</h5>
+            {orderDraft.items.map((item: any, itemIndex: number) => <label className="order-edit-quantity" key={item.productId}><span>{item.name} · {money(item.price)}</span><input type="number" min="1" max="99" value={item.quantity} onChange={e => setOrderDraft((d: any) => ({...d, items:d.items.map((current: any, i: number) => i === itemIndex ? {...current, quantity:Math.max(1,Math.min(99,Number(e.target.value)||1))} : current)}))} /></label>)}
+            <button className="primary-button" disabled={moderatingId === Number(order.id)} onClick={() => void saveOrderEdit()}>{moderatingId === Number(order.id) ? 'Сохраняем…' : 'Сохранить заказ'}</button>
+          </div>}
           {order.status === 'pending' && <div className="order-actions"><button className="primary-button" disabled={moderatingId === Number(order.id)} onClick={() => void moderateOrder(Number(order.id), 'approved')}><Check size={14} /> Подтвердить</button><button className="secondary-button" disabled={moderatingId === Number(order.id)} onClick={() => void moderateOrder(Number(order.id), 'rejected')}><Ban size={14} /> Отклонить</button></div>}
         </article>)}</div> : <div className="empty-state">Пока нет заявок.<br/><span style={{fontSize:13}}>Здесь появятся новые заказы.</span></div>}
       </section> : activeView === 'overview' ? <>

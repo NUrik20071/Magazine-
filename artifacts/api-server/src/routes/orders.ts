@@ -116,6 +116,56 @@ router.get("/admin/orders", requireAdmin, async (req, res): Promise<void> => {
   }
 });
 
+router.patch("/admin/orders/:id", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const { customerName, phone, email = "", address, note = "", items } = req.body ?? {};
+  if (!Number.isSafeInteger(id) || id < 1 ||
+      typeof customerName !== "string" || customerName.trim().length < 2 || customerName.length > 120 ||
+      typeof phone !== "string" || phone.trim().length < 5 || phone.length > 40 ||
+      typeof email !== "string" || email.length > 254 ||
+      typeof address !== "string" || address.trim().length < 5 || address.length > 500 ||
+      typeof note !== "string" || note.length > 1000 ||
+      !Array.isArray(items) || items.length < 1 || items.length > 50) {
+    res.status(400).json({ error: "Проверьте имя, контакты, адрес и состав заказа." });
+    return;
+  }
+  try {
+    await ensureOrdersTable();
+    const current = await pool.query("SELECT items FROM store_orders WHERE id = $1", [id]);
+    if (!current.rows[0]) { res.status(404).json({ error: "Заказ не найден." }); return; }
+    const originalItems = Array.isArray(current.rows[0].items) ? current.rows[0].items : [];
+    const byProduct = new Map<number, any>();
+    for (const item of originalItems) byProduct.set(Number(item.productId), item);
+    const seen = new Set<number>();
+    const nextItems: any[] = [];
+    for (const item of items) {
+      const productId = Number(item?.productId);
+      const quantity = Number(item?.quantity);
+      if (!Number.isSafeInteger(productId) || !byProduct.has(productId) ||
+          !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 99 || seen.has(productId)) {
+        res.status(400).json({ error: "Изменять можно количество товаров из исходного заказа; количество — от 1 до 99." });
+        return;
+      }
+      seen.add(productId);
+      nextItems.push({ ...byProduct.get(productId), quantity });
+    }
+    const total = nextItems.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
+    if (!Number.isSafeInteger(total) || total < 0 || total > 2_000_000_000) {
+      res.status(400).json({ error: "Некорректная итоговая сумма." }); return;
+    }
+    const result = await pool.query(
+      `UPDATE store_orders SET customer_name=$1, customer_phone=$2, customer_email=$3,
+       delivery_address=$4, customer_note=$5, items=$6::jsonb, total_amount=$7, updated_at=NOW()
+       WHERE id=$8 RETURNING *`,
+      [customerName.trim(), phone.trim(), email.trim(), address.trim(), note.trim(), JSON.stringify(nextItems), total, id],
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    req.log.error({ err: error }, "Unable to edit store order");
+    res.status(500).json({ error: "Не удалось сохранить изменения заказа." });
+  }
+});
+
 router.patch("/admin/orders/:id/moderation", requireAdmin, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   const { status, moderationNote = "" } = req.body ?? {};
