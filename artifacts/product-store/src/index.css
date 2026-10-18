@@ -783,7 +783,7 @@ body { background: var(--site-background); color: var(--site-text); font-family:
 .editor-live-preview { border: 1px solid #ded8cd; background: #f5f1e8; overflow: hidden; margin-top: 18px; }
 .editor-live-preview-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 12px 16px; color: #718077; font: 10px var(--app-font-mono); letter-spacing: .08em; }
 .editor-live-preview-head strong { color: #244c43; }
-.editor-live-preview-store { min-width: 0; overflow: hidden; border-top: 1px solid #ded8cd; }
+.editor-live-preview-store { min-width: 0; overflow: hidden; border-top: 1px solid #ded8cd; display:flex; flex-direction:column; }
 .editor-mini-site-head { display:flex; justify-content:space-between; align-items:center; gap:14px; padding:14px 5%; border-bottom:1px solid #00000012; font:10px var(--app-font-mono); letter-spacing:.12em; }
 .editor-mini-site-head strong { font:500 27px var(--site-heading-font); letter-spacing:-.06em; }
 .editor-mini-hero { display:grid; grid-template-columns:minmax(0,1fr) minmax(120px,.55fr); align-items:center; gap:20px; padding:clamp(16px,3vw,28px); }
