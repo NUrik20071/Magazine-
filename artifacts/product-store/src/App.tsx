@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type MouseEvent, type TouchEvent } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from '@clerk/react';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
@@ -318,13 +318,69 @@ function Catalog() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [cartOpen, setCartOpen] = useState(false);
+  const [workflowNotice, setWorkflowNotice] = useState('');
+  const touchStartX = useRef<number | null>(null);
+  const workflowsStarted = useRef(false);
   const [cart, setCart] = useState<CartItem[]>(() => {
     try { return restoreCart(localStorage.getItem('tihoshop-cart')); } catch { return []; }
   });
   const listParams = useMemo(() => ({ ...(search.trim() ? { search: search.trim() } : {}), ...(category ? { category } : {}) }), [search, category]);
   const productsQuery = useListProducts(listParams);
-  useEffect(() => { fetch('/api/storefront/settings').then((r) => r.ok ? r.json() : null).then((config) => { if (config && config.theme && config.content && Array.isArray(config.blocks)) setStorefront({ ...defaultStorefront, ...config, theme: { ...defaultStorefront.theme, ...config.theme }, content: { ...defaultStorefront.content, ...config.content } }); }).catch(() => undefined); }, []);
+  useEffect(() => { fetch('/api/storefront/settings').then((r) => r.ok ? r.json() : null).then((config) => { if (config && config.theme && config.content && Array.isArray(config.blocks)) setStorefront({ ...defaultStorefront, ...config, theme: { ...defaultStorefront.theme, ...config.theme }, content: { ...defaultStorefront.content, ...config.content }, blocks: Array.isArray(config.blocks) ? config.blocks : [], workflows: Array.isArray(config.workflows) ? config.workflows : [] }); }).catch(() => undefined); }, []);
+  const runWorkflows = (trigger: WorkflowTrigger, sourceId = 'any') => {
+    for (const rule of storefront.workflows || []) {
+      if (!rule.enabled || rule.trigger !== trigger) continue;
+      if (trigger === 'click' && rule.listenOn !== 'any' && rule.listenOn !== sourceId) continue;
+      let conditionPassed = true;
+      if (rule.condition === 'mobile') conditionPassed = window.matchMedia('(max-width: 700px)').matches;
+      if (rule.condition === 'desktop') conditionPassed = !window.matchMedia('(max-width: 700px)').matches;
+      if (rule.condition === 'cart-has-items') conditionPassed = cart.length > 0;
+      if (rule.condition === 'url-contains') conditionPassed = window.location.href.includes(rule.conditionValue || '');
+      if (!conditionPassed) continue;
+      const target = Array.from(document.querySelectorAll<HTMLElement>('[data-element-id]')).find((el) => el.dataset.elementId === (rule.targetId || ''));
+      if (rule.action === 'show' && target) target.hidden = false;
+      else if (rule.action === 'hide' && target) target.hidden = true;
+      else if (rule.action === 'toggle' && target) target.hidden = !target.hidden;
+      else if (rule.action === 'animate' && target) {
+        target.dataset.workflowAnimation = rule.value || 'pulse';
+        target.classList.remove('workflow-animate');
+        void target.offsetWidth;
+        target.classList.add('workflow-animate');
+      } else if (rule.action === 'scroll' && target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else if (rule.action === 'navigate' && rule.value) window.location.href = rule.value;
+      else if (rule.action === 'open-link' && rule.value) window.open(rule.value, '_blank', 'noopener,noreferrer');
+      else if (rule.action === 'play-video' && target) {
+        const video = target.matches('video') ? target as HTMLVideoElement : target.querySelector('video');
+        if (video) void video.play().catch(() => undefined);
+      } else if (rule.action === 'show-message') setWorkflowNotice(rule.value || rule.name || 'Действие выполнено');
+    }
+  };
+  const handleWorkflowClick = (event: MouseEvent<HTMLDivElement>) => {
+    const clicked = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-element-id]');
+    runWorkflows('click', clicked?.dataset.elementId || 'any');
+  };
+  const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    touchStartX.current = event.changedTouches[0]?.clientX ?? null;
+  };
+  const handleTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    if (touchStartX.current === null) return;
+    const delta = (event.changedTouches[0]?.clientX ?? touchStartX.current) - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(delta) >= 55) runWorkflows(delta < 0 ? 'swipe-left' : 'swipe-right');
+  };
+  useEffect(() => {
+    if (workflowsStarted.current) return;
+    workflowsStarted.current = true;
+    const frame = window.requestAnimationFrame(() => runWorkflows('page-load'));
+    return () => window.cancelAnimationFrame(frame);
+  }, [storefront.workflows]);
+  useEffect(() => {
+    if (!workflowNotice) return;
+    const timer = window.setTimeout(() => setWorkflowNotice(''), 3200);
+    return () => window.clearTimeout(timer);
+  }, [workflowNotice]);
   useEffect(() => { const root = document.documentElement; root.style.setProperty('--site-background', storefront.theme.background); root.style.setProperty('--site-text', storefront.theme.text); root.style.setProperty('--site-accent', storefront.theme.accent); root.style.setProperty('--site-accent-text', storefront.theme.accentText); root.style.setProperty('--site-card-background', storefront.theme.cardBackground); root.style.setProperty('--site-gradient', storefront.theme.gradient); root.style.setProperty('--site-font', '"' + storefront.theme.font + '", sans-serif'); root.style.setProperty('--site-heading-font', '"' + storefront.theme.headingFont + '", serif'); root.style.setProperty('--site-card-radius', storefront.theme.cardRadius + 'px'); root.style.setProperty('--site-card-columns', String(storefront.theme.cardColumns)); root.style.setProperty('--site-image-ratio', storefront.theme.imageRatio); root.style.setProperty('--site-animation-duration', storefront.theme.animationDuration + 'ms'); root.dataset.siteAnimation = storefront.theme.animation; root.dataset.colorAnimation = String(storefront.theme.colorAnimation); root.dataset.siteHeroLayout = storefront.theme.heroLayout || 'split'; }, [storefront]);
+  useEffect(() => { document.title = storefront.content.siteName || 'Магазин'; }, [storefront.content.siteName]);
   const summaryQuery = useGetStoreSummary();
   const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
   useEffect(() => {
@@ -380,29 +436,29 @@ function Catalog() {
   );
   const removeItem = (id: number) => setCart((items) => items.filter((item) => item.product.id !== id));
 
-  return <div className="shop-shell">
-    <ShopHeader count={count} onCart={() => setCartOpen(true)} announcement={storefront.content.announcement} />
+  return <div className="shop-shell" onClickCapture={handleWorkflowClick} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+    <ShopHeader count={count} onCart={() => setCartOpen(true)} announcement={storefront.content.announcement} content={storefront.content} />
     <main>
-      <section className="hero" data-layout={storefront.theme.heroLayout || 'split'}>
+      <section className="hero" data-element-id="hero" data-layout={storefront.theme.heroLayout || 'split'}>
         <div className="hero-copy">
           <span className="eyebrow">{storefront.content.heroEyebrow}</span>
           <h1>{storefront.content.heroTitle.split("\n").map((line, i) => <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>)}</h1>
           <p>{storefront.content.heroText}</p>
-          <a className="cta" href="#catalog" data-testid="link-explore-catalog">{storefront.content.heroButtonText} <ArrowDownRight size={16} /></a>
+          <a className="cta" href={storefront.content.heroButtonUrl || '#catalog'} data-element-id="hero-button" data-testid="link-explore-catalog">{storefront.content.heroButtonText} <ArrowDownRight size={16} /></a>
         </div>
         <div className="hero-art">
-          <span className="hero-index">ПРЕДМЕТЫ С ХАРАКТЕРОМ · № 01</span>
-          <a className="hero-image-link" href={storefront.content.heroImageLink || '#catalog'}><img src={storefront.content.heroImage || featured?.imageUrl || '/images/orbit-vase.png'} alt={featured?.name || 'Керамическая ваза в солнечном свете'} /></a>
-          <span className="hero-note">Найдено и выбрано в Казахстане</span>
+          <span className="hero-index">{storefront.content.heroIndexText}</span>
+          <a className="hero-image-link" data-element-id="hero-image" href={storefront.content.heroImageLink || '#catalog'}><img src={storefront.content.heroImage || featured?.imageUrl || '/images/orbit-vase.png'} alt={featured?.name || 'Керамическая ваза в солнечном свете'} /></a>
+          <span className="hero-note">{storefront.content.heroNote}</span>
         </div>
       </section>
-      <div className="ticker"><span>С любовью к деталям</span><span>•</span><span>Небольшие тиражи</span><span>•</span><span>Сделано на каждый день</span></div>
-      <section className="catalog" id="catalog">
+      <div className="ticker" data-element-id="ticker"><span>{storefront.content.ticker1}</span><span>•</span><span>{storefront.content.ticker2}</span><span>•</span><span>{storefront.content.ticker3}</span></div>
+      <section className="catalog" id="catalog" data-element-id="catalog">
         <div className="section-head">
-          <div><span className="eyebrow">Наш выбор</span><h2>Предметы<br />на каждый день</h2></div>
+          <div><span className="eyebrow">{storefront.content.catalogEyebrow}</span><h2>{storefront.content.catalogTitle.split("\n").map((line, i) => <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>)}</h2></div>
           <div className="catalog-tools">
             <label style={{ position: 'relative' }}><Search size={15} style={{ position: 'absolute', left: 11, top: 11, color: '#829086' }} />
-              <input className="search-field" style={{ paddingLeft: 34 }} placeholder="Найти вещь" value={search} onChange={(event) => setSearch(event.target.value)} data-testid="input-product-search" />
+              <input className="search-field" style={{ paddingLeft: 34 }} placeholder={storefront.content.searchPlaceholder} value={search} onChange={(event) => setSearch(event.target.value)} data-testid="input-product-search" />
             </label>
             <span className="mono" style={{ fontSize: 10, color: '#788176' }}>{products.length.toString().padStart(2, '0')} предмета</span>
           </div>
@@ -417,16 +473,17 @@ function Catalog() {
               <div className="empty-state" data-testid="empty-products">Коллекция пока собирается.<br /><span style={{ fontSize: 13 }}>Загляните чуть позже — здесь появятся новые находки.</span></div>}
       </section>
       <StorefrontBlocks blocks={storefront.blocks} />
-      <section className="story-band" id="about">
+      <section className="story-band" id="about" data-element-id="about">
         <div className="story-inner">
-          <div><span className="eyebrow">Небольшое объяснение</span><h2>{storefront.content.storyTitle.split("\n").map((line, i) => <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>)}</h2><p>{storefront.content.storyText}</p><a className="quiet-link" href="#catalog" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 9, fontSize: 12 }}>Вернуться к вещам <ArrowRight size={14} /></a></div>
-          <div className="story-mark">«Хорошая вещь не заполняет пространство — она делает его вашим»</div>
+          <div><span className="eyebrow">{storefront.content.storyEyebrow}</span><h2>{storefront.content.storyTitle.split("\n").map((line, i) => <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>)}</h2><p>{storefront.content.storyText}</p><a className="quiet-link" href={storefront.content.storyLinkUrl || '#catalog'} data-element-id="story-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 9, fontSize: 12 }}>{storefront.content.storyLinkText} <ArrowRight size={14} /></a></div>
+          <div className="story-mark">{storefront.content.storyQuote}</div>
         </div>
       </section>
     </main>
-    <footer className="footer"><Link href="/" className="brand">тихо.<small>дом и повседневность</small></Link><div className="footer-note">Алматы · Казахстан<br />Корзина хранится на устройстве</div><span className="mono" style={{ fontSize: 9 }}>© {new Date().getFullYear()} ТИХО</span></footer>
+    <footer className="footer" data-element-id="footer"><Link href="/" className="brand" data-element-id="footer-brand">{storefront.content.siteName}<small>{storefront.content.siteTagline}</small></Link><div className="footer-note">{storefront.content.footerLocation}<br />{storefront.content.footerNote}</div><span className="mono" style={{ fontSize: 9 }}>© {new Date().getFullYear()} {storefront.content.copyrightLabel}</span></footer>
     {selectedProduct && <ProductDetailModal product={selectedProduct} onClose={closeProduct} onAdd={addProduct} />}
     {cartOpen && <CartDrawer items={cart} onClose={() => setCartOpen(false)} onQty={changeQty} onRemove={removeItem} onOrderSubmitted={() => setCart([])} />}
+    {workflowNotice && <div className="workflow-toast" role="status">{workflowNotice}</div>}
   </div>;
 }
 
