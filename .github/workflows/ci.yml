@@ -9,6 +9,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      PORT: 10000
+      BASE_PATH: /
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
