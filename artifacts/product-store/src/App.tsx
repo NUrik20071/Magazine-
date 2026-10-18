@@ -38,7 +38,6 @@ function stripBase(path: string) {
 }
 
 const clerkAppearance = {
-  theme: 'simple',
   cssLayerName: 'clerk',
   options: {
     logoPlacement: 'inside' as const,
