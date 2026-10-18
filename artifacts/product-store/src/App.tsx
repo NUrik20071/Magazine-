@@ -590,6 +590,7 @@ function StorefrontSettingsEditor() {
   const { getToken } = useAuth();
   const [config, setConfig] = useState<StorefrontConfig>(defaultStorefront);
   const [resolvingBlock, setResolvingBlock] = useState<number | null>(null);
+  const [sourceNotice, setSourceNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -606,7 +607,7 @@ function StorefrontSettingsEditor() {
   async function resolveBlockSource(index: number) {
     const source = normalizeSourceUrl(config.blocks[index]?.mediaUrl || '');
     if (!source) { setError('Сначала вставьте публичную ссылку на источник.'); return; }
-    setResolvingBlock(index); setError('');
+    setResolvingBlock(index); setError(''); setSourceNotice('');
     try {
       const response = await fetch('/api/media/resolve?url=' + encodeURIComponent(source));
       const body = await response.json();
@@ -618,7 +619,7 @@ function StorefrontSettingsEditor() {
         : block.type === 'map' ? body.finalUrl : (body.embedUrl || body.finalUrl);
       if (resolved) updateBlock(index, 'mediaUrl', resolved);
       if (body.title && !block.title) updateBlock(index, 'title', body.title);
-      setError(body.note || ('Источник распознан: ' + body.provider + '. Проверьте предпросмотр и сохраните страницу.'));
+      setSourceNotice(body.note || ('Источник распознан: ' + body.provider + '. Проверьте предпросмотр и сохраните страницу.'));
     } catch (error) { setError(error instanceof Error ? error.message : 'Не удалось извлечь источник'); }
     finally { setResolvingBlock(null); }
   }
@@ -652,7 +653,7 @@ function StorefrontSettingsEditor() {
   if (loading) return <div className="skeleton" style={{ height: 220 }} />;
   return <section className="visual-editor">
     <div className="visual-editor-heading"><div><span className="eyebrow">Редактор сайта</span><h2>Оформление витрины</h2><p>Изменения сохраняются в базе данных и сразу применяются к публичному сайту.</p></div><button className="primary-button" onClick={() => void save()} disabled={saving}>{saving ? 'Сохраняем…' : 'Опубликовать оформление'}</button></div>
-    {error && <p className="form-error" role="alert">{error}</p>}{saved && <p className="editor-saved" role="status">Оформление сохранено.</p>}
+    {error && <p className="form-error" role="alert">{error}</p>}{sourceNotice && <p className="editor-saved" role="status">{sourceNotice}</p>}{saved && <p className="editor-saved" role="status">Оформление сохранено.</p>}
     <div className="visual-editor-grid">
       <div className="editor-group editor-group-wide"><h3>Название сайта и текст всей страницы</h3><p className="editor-help">Здесь меняется текст от шапки до самого низа сайта. Предпросмотр обновляется сразу.</p><div className="editor-block-fields">
 <label className="form-field">Название сайта<input value={config.content.siteName} onChange={e => updateContent('siteName', e.target.value)} /></label>
