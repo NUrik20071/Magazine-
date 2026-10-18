@@ -904,3 +904,6 @@ body { background: var(--site-background); color: var(--site-text); font-family:
 @media (prefers-reduced-motion: reduce) {
   .workflow-toast, .workflow-animate, .custom-block-map-wrap { animation:none !important; transition:none !important; }
 }
+
+.custom-block-placeholder { display:grid; place-items:center; min-height:100px; padding:24px; border:1px dashed #a8b4a6; background:#f5f1e8; color:#718077; text-align:center; font-size:12px; line-height:1.6; }
+.admin-main input[type="file"] { max-width:100%; font-size:11px; text-transform:none; letter-spacing:0; }
