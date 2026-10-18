@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from '@clerk/react';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
@@ -19,7 +19,7 @@ import {
 import type { Product } from '@workspace/api-client-react';
 import {
   ArrowDownRight, ArrowRight, Leaf, LogOut, Minus, Package, Pencil,
-  Plus, Search, ShoppingBag, Trash2, UserRound, X, ClipboardList, Check, Ban,
+  Plus, Search, ShoppingBag, Trash2, UserRound, X, ClipboardList, Check, Ban, Settings, ExternalLink, ChevronUp, ChevronDown,
 } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -145,7 +145,7 @@ function AdminHeaderLink() {
   return <Link className="quiet-link" href="/admin" data-testid="link-admin-panel">Панель управления</Link>;
 }
 
-function ShopHeader({ count, onCart }: { count: number; onCart: () => void }) {
+function ShopHeader({ count, onCart, announcement }: { count: number; onCart: () => void; announcement: string }) {
   const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
   const { signOut } = useClerk();
@@ -162,7 +162,7 @@ function ShopHeader({ count, onCart }: { count: number; onCart: () => void }) {
   }
 
   return <>
-    <div className="announcement">Доставка по Казахстану · бесплатно от 35 000 ₸</div>
+    <div className="announcement">{announcement}</div>
     <header className="header">
       <Link href="/" className="brand" data-testid="link-home">тихо.<small>дом и повседневность</small></Link>
       <nav className="header-links" aria-label="Главная навигация">
@@ -186,12 +186,12 @@ function ShopHeader({ count, onCart }: { count: number; onCart: () => void }) {
   </>;
 }
 
-function ProductCard({ product, index, onAdd }: { product: Product; index: number; onAdd: (product: Product) => void }) {
-  return <article className="product-card" data-testid={`card-product-${product.id}`}>
+function ProductCard({ product, index, onAdd, onOpen }: { product: Product; index: number; onAdd: (product: Product) => void; onOpen: (product: Product) => void }) {
+  return <article className="product-card" data-testid={`card-product-${product.id}`} onClick={() => onOpen(product)} tabIndex={0} role="button" onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(product); } }} aria-label={`Открыть товар ${product.name}`}>
     <div className="product-photo">
       <img src={productImage(product, index)} alt={product.name} loading="lazy" data-testid={`img-product-${product.id}`} />
       {product.badge && <span className="badge">{product.badge}</span>}
-      <button className="quick-add" onClick={() => onAdd(product)} aria-label={`Добавить ${product.name}`} data-testid={`button-add-product-${product.id}`}>
+      <button className="quick-add" onClick={(event) => { event.stopPropagation(); onAdd(product); }} aria-label={`Добавить ${product.name}`} data-testid={`button-add-product-${product.id}`}>
         <Plus size={20} />
       </button>
     </div>
@@ -261,7 +261,41 @@ function CartDrawer({ items, onClose, onQty, onRemove, onOrderSubmitted }: {
   </div>;
 }
 
+
+type StorefrontBlock = { id: string; type: 'text' | 'image' | 'video' | 'audio' | 'button' | 'embed'; title?: string; text?: string; label?: string; url?: string; mediaUrl?: string; background?: string; color?: string; width?: string; animation?: string };
+type StorefrontConfig = { theme: { background: string; text: string; accent: string; accentText: string; cardBackground: string; gradient: string; font: string; headingFont: string; cardRadius: number; cardColumns: number; imageRatio: string; animation: string; animationDuration: number; colorAnimation: boolean }; content: { announcement: string; heroEyebrow: string; heroTitle: string; heroText: string; heroImage: string; heroImageLink: string; heroButtonText: string; storyTitle: string; storyText: string }; blocks: StorefrontBlock[] };
+const defaultStorefront: StorefrontConfig = {
+  theme: { background: '#f5f1e8', text: '#244c43', accent: '#244c43', accentText: '#fffaf1', cardBackground: '#fffdf7', gradient: 'linear-gradient(135deg, #f5f1e8 0%, #e5ded0 100%)', font: 'DM Sans', headingFont: 'Cormorant Garamond', cardRadius: 8, cardColumns: 3, imageRatio: '4 / 5', animation: 'lift', animationDuration: 240, colorAnimation: false },
+  content: { announcement: 'Доставка по Казахстану · бесплатно от 35 000 ₸', heroEyebrow: 'Маленькая коллекция для дома', heroTitle: 'Жить\nчуть тише.', heroText: 'Вещи, которые не требуют внимания — только становятся частью хорошего дня. Собираем их небольшими партиями.', heroImage: '/images/orbit-vase.png', heroImageLink: '', heroButtonText: 'Смотреть коллекцию', storyTitle: 'Не больше.\nЛучше.', storyText: '«Тихо» — маленький магазин вещей, которые приятно держать рядом.' },
+  blocks: [],
+};
+function StorefrontBlocks({ blocks }: { blocks: StorefrontBlock[] }) {
+  if (!blocks.length) return null;
+  return <section className="custom-blocks">{blocks.map((block) => {
+    const style: any = { background: block.background || 'transparent', color: block.color || 'inherit', width: block.width || '100%' };
+    let content: ReactNode;
+    if (block.type === 'text') content = <div className="custom-block-copy"><h2>{block.title}</h2><p>{block.text}</p></div>;
+    else if (block.type === 'image') content = <img className="custom-block-media" src={block.mediaUrl} alt={block.title || ''} />;
+    else if (block.type === 'video') content = <video className="custom-block-media" src={block.mediaUrl} controls playsInline />;
+    else if (block.type === 'audio') content = <audio src={block.mediaUrl} controls />;
+    else if (block.type === 'embed') content = <iframe className="custom-block-embed" src={block.mediaUrl} title={block.title || 'Встроенный контент'} loading="lazy" allowFullScreen />;
+    else content = <span>{block.label || block.title || 'Открыть'} <ExternalLink size={14} /></span>;
+    return <div className={'custom-block custom-block-' + block.type} key={block.id} style={style}>{block.url ? <a href={block.url} target={/^https?:/.test(block.url) ? '_blank' : undefined} rel="noreferrer">{content}</a> : content}</div>;
+  })}</section>;
+}
+function ProductDetailModal({ product, onClose, onAdd }: { product: Product; onClose: () => void; onAdd: (product: Product) => void }) {
+  return <div className="product-detail-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <section className="product-detail" role="dialog" aria-modal="true" aria-label={product.name}>
+      <button className="product-detail-close" onClick={onClose} aria-label="Закрыть карточку"><X /></button>
+      <div className="product-detail-gallery"><div className="product-detail-thumbs"><button className="active"><img src={product.imageUrl || '/images/orbit-vase.png'} alt="" /></button></div><div className="product-detail-main-image"><img src={product.imageUrl || '/images/orbit-vase.png'} alt={product.name} /></div></div>
+      <div className="product-detail-info"><span className="eyebrow">{product.category}</span><h1>{product.name}</h1><div className="product-detail-price">{money(product.price)}</div>{product.badge && <span className="badge detail-badge">{product.badge}</span>}<p>{product.description || 'Подробности о товаре уточняйте у продавца.'}</p><div className="product-detail-benefits"><span>✓ Ручной отбор предметов</span><span>✓ Доставка по Казахстану</span><span>✓ Заказ подтверждается вручную</span></div><button className="primary-button product-detail-add" onClick={() => { onAdd(product); onClose(); }}><ShoppingBag size={17} /> Добавить в корзину</button><button className="secondary-button product-detail-back" onClick={onClose}>Вернуться в каталог</button></div>
+    </section>
+  </div>;
+}
+
 function Catalog() {
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [storefront, setStorefront] = useState<StorefrontConfig>(defaultStorefront);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [cartOpen, setCartOpen] = useState(false);
@@ -270,6 +304,8 @@ function Catalog() {
   });
   const listParams = useMemo(() => ({ ...(search.trim() ? { search: search.trim() } : {}), ...(category ? { category } : {}) }), [search, category]);
   const productsQuery = useListProducts(listParams);
+  useEffect(() => { fetch('/api/storefront/settings').then((r) => r.ok ? r.json() : null).then((config) => { if (config && config.theme && config.content && Array.isArray(config.blocks)) setStorefront({ ...defaultStorefront, ...config, theme: { ...defaultStorefront.theme, ...config.theme }, content: { ...defaultStorefront.content, ...config.content } }); }).catch(() => undefined); }, []);
+  useEffect(() => { const root = document.documentElement; root.style.setProperty('--site-background', storefront.theme.background); root.style.setProperty('--site-text', storefront.theme.text); root.style.setProperty('--site-accent', storefront.theme.accent); root.style.setProperty('--site-accent-text', storefront.theme.accentText); root.style.setProperty('--site-card-background', storefront.theme.cardBackground); root.style.setProperty('--site-gradient', storefront.theme.gradient); root.style.setProperty('--site-font', '"' + storefront.theme.font + '", sans-serif'); root.style.setProperty('--site-heading-font', '"' + storefront.theme.headingFont + '", serif'); root.style.setProperty('--site-card-radius', storefront.theme.cardRadius + 'px'); root.style.setProperty('--site-card-columns', String(storefront.theme.cardColumns)); root.style.setProperty('--site-image-ratio', storefront.theme.imageRatio); root.style.setProperty('--site-animation-duration', storefront.theme.animationDuration + 'ms'); root.dataset.siteAnimation = storefront.theme.animation; root.dataset.colorAnimation = String(storefront.theme.colorAnimation); }, [storefront]);
   const summaryQuery = useGetStoreSummary();
   const products = productsQuery.data ?? [];
   useEffect(() => {
@@ -301,18 +337,18 @@ function Catalog() {
   const removeItem = (id: number) => setCart((items) => items.filter((item) => item.product.id !== id));
 
   return <div className="shop-shell">
-    <ShopHeader count={count} onCart={() => setCartOpen(true)} />
+    <ShopHeader count={count} onCart={() => setCartOpen(true)} announcement={storefront.content.announcement} />
     <main>
       <section className="hero">
         <div className="hero-copy">
-          <span className="eyebrow">Маленькая коллекция для дома</span>
-          <h1>Жить<br />чуть тише.</h1>
-          <p>Вещи, которые не требуют внимания — только становятся частью хорошего дня. Собираем их небольшими партиями.</p>
-          <a className="cta" href="#catalog" data-testid="link-explore-catalog">Смотреть коллекцию <ArrowDownRight size={16} /></a>
+          <span className="eyebrow">{storefront.content.heroEyebrow}</span>
+          <h1>{storefront.content.heroTitle.split("\n").map((line, i) => <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>)}</h1>
+          <p>{storefront.content.heroText}</p>
+          <a className="cta" href="#catalog" data-testid="link-explore-catalog">{storefront.content.heroButtonText} <ArrowDownRight size={16} /></a>
         </div>
         <div className="hero-art">
           <span className="hero-index">ПРЕДМЕТЫ С ХАРАКТЕРОМ · № 01</span>
-          <img src={featured?.imageUrl || '/images/orbit-vase.png'} alt={featured?.name || 'Керамическая ваза в солнечном свете'} />
+          <a className="hero-image-link" href={storefront.content.heroImageLink || '#catalog'}><img src={storefront.content.heroImage || featured?.imageUrl || '/images/orbit-vase.png'} alt={featured?.name || 'Керамическая ваза в солнечном свете'} /></a>
           <span className="hero-note">Найдено и выбрано в Казахстане</span>
         </div>
       </section>
@@ -333,18 +369,19 @@ function Catalog() {
         </div>
         {productsQuery.isLoading ? <div className="product-grid" aria-label="Загрузка товаров">{[1, 2, 3, 4].map((n) => <div className="skeleton" key={n} style={{ aspectRatio: '.83' }} />)}</div> :
           productsQuery.isError ? <div className="error-state"><h3 className="serif">Не удалось загрузить коллекцию</h3><p>Проверьте соединение и попробуйте ещё раз.</p><button className="primary-button" onClick={() => productsQuery.refetch()} data-testid="button-retry-products">Повторить</button></div> :
-            products.length ? <div className="product-grid">{products.map((product, index) => <ProductCard key={product.id} product={product} index={index} onAdd={addProduct} />)}</div> :
+            products.length ? <div className="product-grid">{products.map((product, index) => <ProductCard key={product.id} product={product} index={index} onAdd={addProduct} onOpen={setSelectedProduct} />)}</div> :
               <div className="empty-state" data-testid="empty-products">Коллекция пока собирается.<br /><span style={{ fontSize: 13 }}>Загляните чуть позже — здесь появятся новые находки.</span></div>}
       </section>
+      <StorefrontBlocks blocks={storefront.blocks} />
       <section className="story-band" id="about">
         <div className="story-inner">
-          <div><span className="eyebrow">Небольшое объяснение</span><h2>Не больше.<br />Лучше.</h2><p>«Тихо» — маленький магазин вещей, которые приятно держать рядом. Мы не гонимся за количеством и выбираем предметы так, как выбирали бы для собственного дома.</p><a className="quiet-link" href="#catalog" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 9, fontSize: 12 }}>Вернуться к вещам <ArrowRight size={14} /></a></div>
+          <div><span className="eyebrow">Небольшое объяснение</span><h2>{storefront.content.storyTitle.split("\n").map((line, i) => <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>)}</h2><p>{storefront.content.storyText}</p><a className="quiet-link" href="#catalog" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 9, fontSize: 12 }}>Вернуться к вещам <ArrowRight size={14} /></a></div>
           <div className="story-mark">«Хорошая вещь не заполняет пространство — она делает его вашим»</div>
         </div>
       </section>
     </main>
     <footer className="footer"><Link href="/" className="brand">тихо.<small>дом и повседневность</small></Link><div className="footer-note">Алматы · Казахстан<br />Корзина хранится на устройстве</div><span className="mono" style={{ fontSize: 9 }}>© {new Date().getFullYear()} ТИХО</span></footer>
-    {cartOpen && <CartDrawer items={cart} onClose={() => setCartOpen(false)} onQty={changeQty} onRemove={removeItem} onOrderSubmitted={() => setCart([])} />}
+    {selectedProduct && <ProductDetailModal product={selectedProduct} onClose={() => setSelectedProduct(null)} onAdd={addProduct} />}\n    {cartOpen && <CartDrawer items={cart} onClose={() => setCartOpen(false)} onQty={changeQty} onRemove={removeItem} onOrderSubmitted={() => setCart([])} />}
   </div>;
 }
 
@@ -382,6 +419,54 @@ function ProductEditor({ product, onClose, onSave, busy }: { product: Product | 
   </div>;
 }
 
+
+function StorefrontSettingsEditor() {
+  const { getToken } = useAuth();
+  const [config, setConfig] = useState<StorefrontConfig>(defaultStorefront);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { fetch('/api/storefront/settings').then((r) => r.json()).then((data) => setConfig({ ...defaultStorefront, ...data, theme: { ...defaultStorefront.theme, ...(data.theme || {}) }, content: { ...defaultStorefront.content, ...(data.content || {}) }, blocks: Array.isArray(data.blocks) ? data.blocks : [] })).catch(() => setError('Не удалось загрузить настройки')).finally(() => setLoading(false)); }, []);
+  const updateTheme = (key: keyof StorefrontConfig['theme'], value: string | number | boolean) => setConfig((c) => ({ ...c, theme: { ...c.theme, [key]: value } }));
+  const updateContent = (key: keyof StorefrontConfig['content'], value: string) => setConfig((c) => ({ ...c, content: { ...c.content, [key]: value } }));
+  const updateBlock = (index: number, key: keyof StorefrontBlock, value: string) => setConfig((c) => ({ ...c, blocks: c.blocks.map((b, i) => i === index ? { ...b, [key]: value } : b) }));
+  async function save() {
+    setSaving(true); setError(''); setSaved(false);
+    try {
+      const token = await getToken();
+      const response = await fetch('/api/admin/storefront/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: JSON.stringify({ config }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Не удалось сохранить оформление');
+      setConfig(body.config); setSaved(true);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения'); }
+    finally { setSaving(false); }
+  }
+  function addBlock(type: StorefrontBlock['type']) {
+    setConfig((c) => ({ ...c, blocks: [...c.blocks, { id: 'block-' + Date.now(), type, title: type === 'text' ? 'Новый блок' : '', text: '', label: type === 'button' ? 'Открыть ссылку' : '', url: '', mediaUrl: '', background: '#f5f1e8', color: '#244c43', width: '100%', animation: 'lift' }] }));
+  }
+  function moveBlock(index: number, direction: number) {
+    setConfig((c) => { const blocks = [...c.blocks]; const target = index + direction; if (target < 0 || target >= blocks.length) return c; const temp = blocks[index]; blocks[index] = blocks[target]; blocks[target] = temp; return { ...c, blocks }; });
+  }
+  if (loading) return <div className="skeleton" style={{ height: 220 }} />;
+  return <section className="visual-editor">
+    <div className="visual-editor-heading"><div><span className="eyebrow">Редактор сайта</span><h2>Оформление витрины</h2><p>Изменения сохраняются в базе данных и сразу применяются к публичному сайту.</p></div><button className="primary-button" onClick={() => void save()} disabled={saving}>{saving ? 'Сохраняем…' : 'Опубликовать оформление'}</button></div>
+    {error && <p className="form-error" role="alert">{error}</p>}{saved && <p className="editor-saved" role="status">Оформление сохранено.</p>}
+    <div className="visual-editor-grid">
+      <div className="editor-group"><h3>Цвета и шрифты</h3><label className="form-field">Фон сайта<input type="color" value={config.theme.background} onChange={e => updateTheme('background', e.target.value)} /></label><label className="form-field">Цвет текста<input type="color" value={config.theme.text} onChange={e => updateTheme('text', e.target.value)} /></label><label className="form-field">Основной цвет / кнопки<input type="color" value={config.theme.accent} onChange={e => updateTheme('accent', e.target.value)} /></label><label className="form-field">Фон карточек<input type="color" value={config.theme.cardBackground} onChange={e => updateTheme('cardBackground', e.target.value)} /></label><label className="form-field">Градиент CSS<input value={config.theme.gradient} onChange={e => updateTheme('gradient', e.target.value)} placeholder="linear-gradient(...)" /></label><label className="form-field">Шрифт текста<select value={config.theme.font} onChange={e => updateTheme('font', e.target.value)}><option>DM Sans</option><option>Arial</option><option>Georgia</option><option>Inter</option><option>system-ui</option></select></label><label className="form-field">Шрифт заголовков<select value={config.theme.headingFont} onChange={e => updateTheme('headingFont', e.target.value)}><option>Cormorant Garamond</option><option>Georgia</option><option>Arial</option><option>DM Sans</option></select></label></div>
+      <div className="editor-group"><h3>Сетка и анимации</h3><label className="form-field">Колонки каталога<select value={config.theme.cardColumns} onChange={e => updateTheme('cardColumns', Number(e.target.value))}><option value={2}>2 колонки</option><option value={3}>3 колонки</option><option value={4}>4 колонки</option><option value={5}>5 колонок</option></select></label><label className="form-field">Пропорции фото<select value={config.theme.imageRatio} onChange={e => updateTheme('imageRatio', e.target.value)}><option value="1 / 1">Квадрат 1:1</option><option value="4 / 5">Портрет 4:5</option><option value="3 / 2">Альбом 3:2</option><option value="16 / 9">Широкий 16:9</option></select></label><label className="form-field">Скругление карточек (px)<input type="number" min="0" max="40" value={config.theme.cardRadius} onChange={e => updateTheme('cardRadius', Number(e.target.value))} /></label><label className="form-field">Анимация<select value={config.theme.animation} onChange={e => updateTheme('animation', e.target.value)}><option value="lift">Подъём при наведении</option><option value="fade">Плавное появление</option><option value="glow">Свечение</option><option value="none">Без анимации</option></select></label><label className="form-field">Длительность (мс)<input type="number" min="0" max="2000" step="50" value={config.theme.animationDuration} onChange={e => updateTheme('animationDuration', Number(e.target.value))} /></label><label className="editor-check"><input type="checkbox" checked={config.theme.colorAnimation} onChange={e => updateTheme('colorAnimation', e.target.checked)} /> Анимировать цветовые переходы</label></div>
+      <div className="editor-group editor-group-wide"><h3>Тексты, изображения и ссылки</h3><label className="form-field">Бегущая строка / объявление<input value={config.content.announcement} onChange={e => updateContent('announcement', e.target.value)} /></label><label className="form-field">Надзаголовок главного экрана<input value={config.content.heroEyebrow} onChange={e => updateContent('heroEyebrow', e.target.value)} /></label><label className="form-field">Заголовок (перенос строки через Enter)<textarea rows={2} value={config.content.heroTitle} onChange={e => updateContent('heroTitle', e.target.value)} /></label><label className="form-field">Описание главного экрана<textarea rows={3} value={config.content.heroText} onChange={e => updateContent('heroText', e.target.value)} /></label><label className="form-field">Текст кнопки<input value={config.content.heroButtonText} onChange={e => updateContent('heroButtonText', e.target.value)} /></label><label className="form-field">URL картинки главного экрана<input value={config.content.heroImage} onChange={e => updateContent('heroImage', e.target.value)} placeholder="/images/..." /></label><label className="form-field">Ссылка при нажатии на картинку<input value={config.content.heroImageLink} onChange={e => updateContent('heroImageLink', e.target.value)} placeholder="https://... или #catalog" /></label><label className="form-field">Заголовок блока «О нас»<textarea rows={2} value={config.content.storyTitle} onChange={e => updateContent('storyTitle', e.target.value)} /></label><label className="form-field">Текст «О нас»<textarea rows={3} value={config.content.storyText} onChange={e => updateContent('storyText', e.target.value)} /></label></div>
+    </div>
+    <div className="editor-group editor-group-wide"><div className="editor-blocks-heading"><div><h3>Свободные блоки страницы</h3><p>Меняйте порядок, размер, цвет, текст, медиа и ссылку каждого блока.</p></div><div className="editor-add-blocks">{(['text','image','video','audio','button','embed'] as StorefrontBlock['type'][]).map(type => <button key={type} className="secondary-button" onClick={() => addBlock(type)}>+ {({text:'Текст',image:'Фото',video:'Видео',audio:'Аудио',button:'Кнопка',embed:'Встраивание'} as Record<string,string>)[type]}</button>)}</div></div>
+      {config.blocks.map((block, index) => <div className="editor-block" key={block.id}><div className="editor-block-top"><strong>{index + 1}. {block.type}</strong><div><button className="plain-icon" onClick={() => moveBlock(index, -1)} disabled={index === 0} aria-label="Переместить выше"><ChevronUp size={16}/></button><button className="plain-icon" onClick={() => moveBlock(index, 1)} disabled={index === config.blocks.length - 1} aria-label="Переместить ниже"><ChevronDown size={16}/></button><button className="plain-icon" onClick={() => setConfig(c => ({...c, blocks:c.blocks.filter((_,i)=>i!==index)}))} aria-label="Удалить блок"><Trash2 size={15}/></button></div></div>
+        <div className="editor-block-fields"><label className="form-field">Заголовок / подпись<input value={block.title || ''} onChange={e => updateBlock(index, 'title', e.target.value)} /></label>{(block.type === 'text') && <label className="form-field">Текст<textarea rows={3} value={block.text || ''} onChange={e => updateBlock(index, 'text', e.target.value)} /></label>}{block.type === 'button' && <label className="form-field">Текст кнопки<input value={block.label || ''} onChange={e => updateBlock(index, 'label', e.target.value)} /></label>}{(['image','video','audio','embed'] as string[]).includes(block.type) && <label className="form-field">URL медиа / встраивания<input value={block.mediaUrl || ''} onChange={e => updateBlock(index, 'mediaUrl', e.target.value)} /></label>}<label className="form-field">Ссылка при нажатии<input value={block.url || ''} onChange={e => updateBlock(index, 'url', e.target.value)} placeholder="https://... или /catalog" /></label><label className="form-field">Фон<input value={block.background || ''} onChange={e => updateBlock(index, 'background', e.target.value)} placeholder="#ffffff или linear-gradient(...)" /></label><label className="form-field">Цвет текста<input value={block.color || ''} onChange={e => updateBlock(index, 'color', e.target.value)} placeholder="#244c43" /></label><label className="form-field">Ширина<input value={block.width || '100%'} onChange={e => updateBlock(index, 'width', e.target.value)} placeholder="100%, 50%, 600px" /></label></div>
+      </div>)}
+      {!config.blocks.length && <p className="editor-empty">Пока нет блоков. Добавьте текст, картинку, видео, аудио или кнопку выше.</p>}
+    </div>
+    <div className="visual-editor-bottom"><button className="primary-button" onClick={() => void save()} disabled={saving}>{saving ? 'Сохраняем…' : 'Сохранить и опубликовать'}</button></div>
+  </section>;
+}
+
 function AdminGate() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const { user } = useUser();
@@ -411,7 +496,7 @@ function AdminGate() {
   const productsQuery = useListAdminProducts({
     query: { queryKey: getListAdminProductsQueryKey(), enabled: isLoaded && isSignedIn === true && tokenReady, retry: false },
   });
-  const [activeView, setActiveView] = useState<'overview' | 'products' | 'orders'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'products' | 'orders' | 'settings'>('overview');
   const [orders, setOrders] = useState<any[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState('');
@@ -482,12 +567,13 @@ function AdminGate() {
         <button className={activeView === 'overview' ? 'selected' : ''} onClick={() => setActiveView('overview')} data-testid="button-admin-overview"><Leaf size={16} />Обзор</button>
         <button className={activeView === 'products' ? 'selected' : ''} onClick={() => setActiveView('products')} data-testid="button-admin-products"><Package size={16} />Предметы</button>
         <button className={activeView === 'orders' ? 'selected' : ''} onClick={() => setActiveView('orders')} data-testid="button-admin-orders"><ClipboardList size={16} />Заказы</button>
+        <button className={activeView === 'settings' ? 'selected' : ''} onClick={() => setActiveView('settings')} data-testid="button-admin-settings"><Settings size={16} />Оформление сайта</button>
       </nav></div>
       <div><div className="admin-label">Публичный магазин</div><Link className="quiet-link" style={{ color: '#d7dfd3', fontSize: 12, padding: 12, display: 'flex', alignItems: 'center', gap: 9 }} href="/" data-testid="link-view-store">Открыть витрину <ArrowRight size={13} /></Link></div>
     </aside>
     <main className="admin-main"><div className="admin-content">
       <div className="admin-top">
-        <div><div className="eyebrow">Тихо · администрирование</div><h1>{activeView === 'overview' ? 'Обзор магазина' : activeView === 'products' ? 'Каталог предметов' : 'Модерация заказов'}</h1></div>
+        <div><div className="eyebrow">Тихо · администрирование</div><h1>{activeView === 'overview' ? 'Обзор магазина' : activeView === 'products' ? 'Каталог предметов' : activeView === 'orders' ? 'Модерация заказов' : 'Оформление сайта'}</h1></div>
         <div className="admin-top-actions">
           <div className="admin-account" title={user?.primaryEmailAddress?.emailAddress || adminDisplayName}>
             {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : <span className="admin-account-fallback"><UserRound size={15} /></span>}
@@ -495,11 +581,11 @@ function AdminGate() {
           </div>
           <Link className="admin-store-switch" href="/" data-testid="button-switch-to-store"><ShoppingBag size={15} /> Обычный сайт</Link>
           <button className="account-logout" onClick={() => void handleAdminSignOut()} disabled={signingOut} data-testid="button-admin-sign-out"><LogOut size={15} /><span>{signingOut ? 'Выходим…' : 'Выйти'}</span></button>
-          <button className="primary-button" onClick={() => setEditor(null)} data-testid="button-create-product"><Plus size={15} /> Новый предмет</button>
+          {activeView === 'products' && <button className="primary-button" onClick={() => setEditor(null)} data-testid="button-create-product"><Plus size={15} /> Новый предмет</button>}
         </div>
       </div>
       {notice && <p role="status" style={{ color: '#486d53', fontSize: 12 }} data-testid="status-admin-notice">{notice}<button className="plain-icon" onClick={() => setNotice('')} aria-label="Закрыть сообщение"><X size={13} /></button></p>}
-      {activeView === 'orders' ? <section className="orders-panel">
+      {activeView === 'settings' ? <StorefrontSettingsEditor /> : activeView === 'orders' ? <section className="orders-panel">
         <div className="orders-intro"><span className="eyebrow">Ручная проверка</span><p>Подтверждение заказа не означает, что оплата уже получена.</p></div>
         {ordersError && <p className="form-error" role="alert">{ordersError}</p>}
         {ordersLoading ? <div className="skeleton" style={{height:160}} /> : orders.length ? <div className="order-list">{orders.map(order => <article className="order-card" key={order.id}>
