@@ -610,3 +610,53 @@ button { cursor: pointer; }
   .admin-store-switch { padding: 8px; font-size: 10px; }
   .admin-top-actions .account-logout { padding: 8px; }
 }
+
+
+/* Checkout and moderation: quiet, tactile motion with accessible reduced-motion fallback. */
+.checkout-start { width: 100%; justify-content: center; gap: 10px; margin-top: 12px; min-height: 48px; transition: transform .24s cubic-bezier(.2,.8,.2,1), box-shadow .24s, background .24s; }
+.checkout-start:hover { transform: translateY(-2px); box-shadow: 0 12px 24px #244c4320; }
+.checkout-start:active { transform: scale(.985); }
+.checkout-form { display: grid; gap: 12px; margin-top: 20px; animation: checkout-enter .34s cubic-bezier(.2,.8,.2,1) both; }
+.checkout-form h3 { font: 500 29px/.95 var(--app-font-serif); margin: 0 0 5px; color: #244c43; }
+.checkout-form .form-field { display: grid; gap: 6px; font-size: 11px; color: #647269; }
+.checkout-form input, .checkout-form textarea { width: 100%; min-width: 0; border: 1px solid #d9d1c3; background: #fffdf8; padding: 12px; color: #244c43; outline: none; transition: border-color .2s, box-shadow .2s, background .2s; }
+.checkout-form input:focus, .checkout-form textarea:focus { border-color: #50796c; box-shadow: 0 0 0 3px #244c4314; background: white; }
+.form-error { color: #a3483d; background: #f7eae4; padding: 12px 14px; font-size: 12px; border-left: 2px solid #a3483d; }
+.order-success { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0; padding: 14px; color: #244c43; background: #e6eee5; font-size: 12px; line-height: 1.6; animation: checkout-enter .3s ease both; }
+.orders-panel { padding-top: 10px; }
+.orders-intro { padding: 22px 24px; margin-bottom: 20px; background: #e9e3d7; border: 1px solid #ddd4c5; }
+.orders-intro p { margin: 8px 0 0; color: #66756b; font-size: 13px; }
+.order-list { display: grid; gap: 16px; }
+.order-card { padding: 22px; border: 1px solid #ddd6ca; background: #fffdf8; animation: checkout-enter .35s cubic-bezier(.2,.8,.2,1) both; transition: box-shadow .25s, transform .25s; }
+.order-card:hover { box-shadow: 0 14px 36px #244c4310; transform: translateY(-1px); }
+.order-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid #e8e1d5; }
+.order-card-head > div { display: grid; gap: 5px; }
+.order-number { color: #9a6658; font: 10px var(--app-font-mono); letter-spacing: .12em; }
+.order-card-head small { color: #839087; font-size: 11px; }
+.order-customer { display: grid; gap: 6px; padding: 16px 0; color: #6c786f; font-size: 12px; overflow-wrap: anywhere; }
+.order-customer strong { color: #244c43; font-size: 15px; }
+.order-customer p { margin: 3px 0 0; }
+.order-items { display: grid; gap: 9px; padding: 14px 0; border-top: 1px solid #e8e1d5; }
+.order-item, .order-total { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+.order-item { color: #647269; }
+.order-item strong, .order-total strong { color: #244c43; white-space: nowrap; }
+.order-total { padding-top: 13px; border-top: 1px solid #e8e1d5; font-size: 13px; }
+.order-actions { display: flex; gap: 10px; margin-top: 18px; }
+.order-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: 1; min-height: 42px; }
+.order-status { text-transform: none; }
+.order-status.pending { background: #f5e8d0; color: #8b6535; }
+.order-status.approved { background: #e2eee2; color: #356247; }
+.order-status.rejected { background: #f5e4df; color: #984a3f; }
+.admin-nav button { transition: background .22s, color .22s, transform .22s; }
+.admin-nav button:active { transform: scale(.985); }
+@keyframes checkout-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 600px) {
+  .order-card { padding: 16px; }
+  .order-card-head { flex-wrap: wrap; }
+  .order-actions { flex-direction: column; }
+  .checkout-form h3 { font-size: 26px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .checkout-form, .order-success, .order-card { animation: none !important; }
+  .checkout-start, .order-card, .admin-nav button { transition: none !important; }
+}

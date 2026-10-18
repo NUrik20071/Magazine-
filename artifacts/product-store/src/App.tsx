@@ -19,7 +19,7 @@ import {
 import type { Product } from '@workspace/api-client-react';
 import {
   ArrowDownRight, ArrowRight, Leaf, LogOut, Minus, Package, Pencil,
-  Plus, Search, ShoppingBag, Trash2, UserRound, X,
+  Plus, Search, ShoppingBag, Trash2, UserRound, X, ClipboardList, Check, Ban,
 } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -203,16 +203,34 @@ function ProductCard({ product, index, onAdd }: { product: Product; index: numbe
   </article>;
 }
 
-function CartDrawer({ items, onClose, onQty, onRemove }: {
+function CartDrawer({ items, onClose, onQty, onRemove, onOrderSubmitted }: {
   items: CartItem[];
   onClose: () => void;
   onQty: (id: number, delta: number) => void;
   onRemove: (id: number) => void;
+  onOrderSubmitted: () => void;
 }) {
   const total = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const [checkout, setCheckout] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [orderError, setOrderError] = useState('');
+  const [orderSuccess, setOrderSuccess] = useState('');
+  const [details, setDetails] = useState({ customerName: '', phone: '', email: '', address: '', note: '' });
+  async function submitOrder(event: FormEvent) {
+    event.preventDefault(); setSending(true); setOrderError('');
+    try {
+      const response = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...details, items: items.map(({ product, quantity }) => ({ productId: product.id, quantity })) }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Не удалось отправить заказ');
+      setOrderSuccess('Заявка №' + result.id + ' отправлена. Мы проверим заказ и свяжемся с вами.');
+      onOrderSubmitted(); setCheckout(false);
+    } catch (error) { setOrderError(error instanceof Error ? error.message : 'Ошибка отправки. Попробуйте ещё раз.'); }
+    finally { setSending(false); }
+  }
   return <div className="drawer-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <aside className="cart-drawer" role="dialog" aria-modal="true" aria-label="Корзина">
       <div className="drawer-head"><h2>Ваша корзина</h2><button className="plain-icon" onClick={onClose} aria-label="Закрыть корзину" data-testid="button-close-cart"><X /></button></div>
+      {orderSuccess && <div className="order-success" role="status"><Check size={18} />{orderSuccess}</div>}
       {items.length === 0 ? <div className="empty-state" data-testid="empty-cart">Здесь пока тихо.<br /><span style={{ fontSize: 13 }}>Добавьте что-нибудь любимое.</span></div> :
         items.map(({ product, quantity }) => <div className="cart-line" key={product.id} data-testid={`cart-item-${product.id}`}>
           <img src={productImage(product, product.id)} alt={product.name} />
@@ -227,7 +245,17 @@ function CartDrawer({ items, onClose, onQty, onRemove }: {
         </div>)}
       {items.length > 0 && <>
         <div className="cart-total"><span>Итого</span><strong>{money(total)}</strong></div>
-        <p className="checkout-note">Корзина сохранена на этом устройстве. Условия заказа и доставки уточняются.</p>
+        <p className="checkout-note">Сначала проверим заказ вручную. Оплата — после подтверждения.</p>
+        {!checkout ? <button className="primary-button checkout-start" onClick={() => setCheckout(true)}>Оформить заявку <ArrowRight size={15} /></button> : <form className="checkout-form" onSubmit={submitOrder}>
+          <h3>Детали заказа</h3>
+          <label className="form-field">Ваше имя<input required minLength={2} maxLength={120} value={details.customerName} onChange={e => setDetails({ ...details, customerName: e.target.value })} /></label>
+          <label className="form-field">Телефон для связи<input required type="tel" maxLength={40} placeholder="+7 ..." value={details.phone} onChange={e => setDetails({ ...details, phone: e.target.value })} /></label>
+          <label className="form-field">Email (необязательно)<input type="email" maxLength={254} value={details.email} onChange={e => setDetails({ ...details, email: e.target.value })} /></label>
+          <label className="form-field">Адрес или способ получения<input required minLength={5} maxLength={500} placeholder="Город, адрес или удобный способ связи" value={details.address} onChange={e => setDetails({ ...details, address: e.target.value })} /></label>
+          <label className="form-field">Комментарий<textarea maxLength={1000} rows={2} value={details.note} onChange={e => setDetails({ ...details, note: e.target.value })} /></label>
+          {orderError && <p className="form-error" role="alert">{orderError}</p>}
+          <button className="primary-button checkout-start" disabled={sending}>{sending ? 'Отправляем…' : 'Отправить на модерацию'}</button>
+        </form>}
       </>}
     </aside>
   </div>;
@@ -316,7 +344,7 @@ function Catalog() {
       </section>
     </main>
     <footer className="footer"><Link href="/" className="brand">тихо.<small>дом и повседневность</small></Link><div className="footer-note">Алматы · Казахстан<br />Корзина хранится на устройстве</div><span className="mono" style={{ fontSize: 9 }}>© {new Date().getFullYear()} ТИХО</span></footer>
-    {cartOpen && <CartDrawer items={cart} onClose={() => setCartOpen(false)} onQty={changeQty} onRemove={removeItem} />}
+    {cartOpen && <CartDrawer items={cart} onClose={() => setCartOpen(false)} onQty={changeQty} onRemove={removeItem} onOrderSubmitted={() => setCart([])} />}
   </div>;
 }
 
@@ -383,7 +411,33 @@ function AdminGate() {
   const productsQuery = useListAdminProducts({
     query: { queryKey: getListAdminProductsQueryKey(), enabled: isLoaded && isSignedIn === true && tokenReady, retry: false },
   });
-  const [activeView, setActiveView] = useState<'overview' | 'products'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'products' | 'orders'>('overview');
+  const [orders, setOrders] = useState<any[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState('');
+  const [moderatingId, setModeratingId] = useState<number | null>(null);
+  useEffect(() => {
+    if (activeView !== 'orders' || !isLoaded || !isSignedIn) return;
+    let cancelled = false;
+    setOrdersLoading(true);
+    void getToken().then(token => fetch('/api/admin/orders', { headers: token ? { Authorization: 'Bearer ' + token } : {} }))
+      .then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Не удалось загрузить заказы'); return body; })
+      .then(body => { if (!cancelled) setOrders(Array.isArray(body) ? body : []); })
+      .catch(error => { if (!cancelled) setOrdersError(error instanceof Error ? error.message : 'Ошибка загрузки'); })
+      .finally(() => { if (!cancelled) setOrdersLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeView, getToken, isLoaded, isSignedIn]);
+  async function moderateOrder(id: number, status: 'approved' | 'rejected') {
+    setModeratingId(id);
+    try {
+      const token = await getToken();
+      const response = await fetch('/api/admin/orders/' + id + '/moderation', { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: JSON.stringify({ status }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Не удалось обновить заказ');
+      setOrders(current => current.map(order => order.id === id ? { ...order, ...body } : order));
+    } catch (error) { setOrdersError(error instanceof Error ? error.message : 'Ошибка модерации'); }
+    finally { setModeratingId(null); }
+  }
   const [editor, setEditor] = useState<Product | null | undefined>(undefined);
   const [filter, setFilter] = useState('');
   const [notice, setNotice] = useState('');
@@ -427,12 +481,13 @@ function AdminGate() {
       <div><div className="admin-label">Рабочее пространство</div><nav className="admin-nav">
         <button className={activeView === 'overview' ? 'selected' : ''} onClick={() => setActiveView('overview')} data-testid="button-admin-overview"><Leaf size={16} />Обзор</button>
         <button className={activeView === 'products' ? 'selected' : ''} onClick={() => setActiveView('products')} data-testid="button-admin-products"><Package size={16} />Предметы</button>
+        <button className={activeView === 'orders' ? 'selected' : ''} onClick={() => setActiveView('orders')} data-testid="button-admin-orders"><ClipboardList size={16} />Заказы</button>
       </nav></div>
       <div><div className="admin-label">Публичный магазин</div><Link className="quiet-link" style={{ color: '#d7dfd3', fontSize: 12, padding: 12, display: 'flex', alignItems: 'center', gap: 9 }} href="/" data-testid="link-view-store">Открыть витрину <ArrowRight size={13} /></Link></div>
     </aside>
     <main className="admin-main"><div className="admin-content">
       <div className="admin-top">
-        <div><div className="eyebrow">Тихо · администрирование</div><h1>{activeView === 'overview' ? 'Обзор магазина' : 'Каталог предметов'}</h1></div>
+        <div><div className="eyebrow">Тихо · администрирование</div><h1>{activeView === 'overview' ? 'Обзор магазина' : activeView === 'products' ? 'Каталог предметов' : 'Модерация заказов'}</h1></div>
         <div className="admin-top-actions">
           <div className="admin-account" title={user?.primaryEmailAddress?.emailAddress || adminDisplayName}>
             {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : <span className="admin-account-fallback"><UserRound size={15} /></span>}
@@ -444,7 +499,17 @@ function AdminGate() {
         </div>
       </div>
       {notice && <p role="status" style={{ color: '#486d53', fontSize: 12 }} data-testid="status-admin-notice">{notice}<button className="plain-icon" onClick={() => setNotice('')} aria-label="Закрыть сообщение"><X size={13} /></button></p>}
-      {activeView === 'overview' ? <>
+      {activeView === 'orders' ? <section className="orders-panel">
+        <div className="orders-intro"><span className="eyebrow">Ручная проверка</span><p>Подтверждение заказа не означает, что оплата уже получена.</p></div>
+        {ordersError && <p className="form-error" role="alert">{ordersError}</p>}
+        {ordersLoading ? <div className="skeleton" style={{height:160}} /> : orders.length ? <div className="order-list">{orders.map(order => <article className="order-card" key={order.id}>
+          <div className="order-card-head"><div><span className="order-number">ЗАКАЗ №{order.id}</span><small>{new Date(order.created_at).toLocaleString('ru-RU')}</small></div><span className={'status-pill order-status ' + order.status}>{order.status === 'pending' ? 'На проверке' : order.status === 'approved' ? 'Подтверждён' : 'Отклонён'}</span></div>
+          <div className="order-customer"><strong>{order.customer_name}</strong><span>{order.customer_phone}</span>{order.customer_email && <span>{order.customer_email}</span>}<span>{order.delivery_address}</span>{order.customer_note && <p>Комментарий: {order.customer_note}</p>}</div>
+          <div className="order-items">{(Array.isArray(order.items) ? order.items : []).map((item: any, index: number) => <div className="order-item" key={item.productId || index}><span>{item.name} × {item.quantity}</span><strong>{money(Number(item.price) * Number(item.quantity))}</strong></div>)}</div>
+          <div className="order-total"><span>Итого</span><strong>{money(Number(order.total_amount))}</strong></div>
+          {order.status === 'pending' && <div className="order-actions"><button className="primary-button" disabled={moderatingId === Number(order.id)} onClick={() => void moderateOrder(Number(order.id), 'approved')}><Check size={14} /> Подтвердить</button><button className="secondary-button" disabled={moderatingId === Number(order.id)} onClick={() => void moderateOrder(Number(order.id), 'rejected')}><Ban size={14} /> Отклонить</button></div>}
+        </article>)}</div> : <div className="empty-state">Пока нет заявок.<br/><span style={{fontSize:13}}>Здесь появятся новые заказы.</span></div>}
+      </section> : activeView === 'overview' ? <>
         <div className="stat-grid">
           <div className="stat-card" data-testid="stat-total-products"><span>Всего предметов</span><strong>{overview.totalProducts}</strong></div>
           <div className="stat-card" data-testid="stat-active-products"><span>В витрине</span><strong>{overview.activeProducts}</strong></div>
