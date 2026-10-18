@@ -326,8 +326,15 @@ function ProductEditor({ product, onClose, onSave, busy }: { product: Product | 
 }
 
 function AdminGate() {
-  const overviewQuery = useGetAdminOverview();
-  const productsQuery = useListAdminProducts();
+  const { isLoaded, isSignedIn, getToken } = useAuth();
+  // Register Clerk's session token before the admin queries can execute.
+  setAuthTokenGetter(() => getToken());
+  const overviewQuery = useGetAdminOverview({
+    query: { enabled: isLoaded && isSignedIn === true, retry: false },
+  });
+  const productsQuery = useListAdminProducts({
+    query: { enabled: isLoaded && isSignedIn === true, retry: false },
+  });
   const [activeView, setActiveView] = useState<'overview' | 'products'>('overview');
   const [editor, setEditor] = useState<Product | null | undefined>(undefined);
   const [filter, setFilter] = useState('');
@@ -344,7 +351,7 @@ function AdminGate() {
     setEditor(undefined);
     setNotice('Изменения сохранены');
   }
-  const isLoading = overviewQuery.isLoading || productsQuery.isLoading;
+  const isLoading = !isLoaded || (isSignedIn === true && (overviewQuery.isLoading || productsQuery.isLoading));
   const isError = overviewQuery.isError || productsQuery.isError;
   const overview = overviewQuery.data;
   const adminProducts = productsQuery.data ?? [];
