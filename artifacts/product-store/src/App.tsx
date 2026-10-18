@@ -19,7 +19,7 @@ import {
 import type { Product } from '@workspace/api-client-react';
 import {
   ArrowDownRight, ArrowRight, Leaf, LogOut, Minus, Package, Pencil,
-  Plus, Search, ShoppingBag, Trash2, UserRound, X, ClipboardList, Check, Ban,
+  Plus, Search, ShoppingBag, Trash2, UserRound, X, ClipboardList, Check, Ban, Settings, ExternalLink, ChevronUp, ChevronDown,
 } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -186,12 +186,12 @@ function ShopHeader({ count, onCart }: { count: number; onCart: () => void }) {
   </>;
 }
 
-function ProductCard({ product, index, onAdd }: { product: Product; index: number; onAdd: (product: Product) => void }) {
-  return <article className="product-card" data-testid={`card-product-${product.id}`}>
+function ProductCard({ product, index, onAdd, onOpen }: { product: Product; index: number; onAdd: (product: Product) => void; onOpen: (product: Product) => void }) {
+  return <article className="product-card" data-testid={`card-product-${product.id}`} onClick={() => onOpen(product)} tabIndex={0} role="button" onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(product); } }} aria-label={`Открыть товар ${product.name}`}>
     <div className="product-photo">
       <img src={productImage(product, index)} alt={product.name} loading="lazy" data-testid={`img-product-${product.id}`} />
       {product.badge && <span className="badge">{product.badge}</span>}
-      <button className="quick-add" onClick={() => onAdd(product)} aria-label={`Добавить ${product.name}`} data-testid={`button-add-product-${product.id}`}>
+      <button className="quick-add" onClick={(event) => { event.stopPropagation(); onAdd(product); }} aria-label={`Добавить ${product.name}`} data-testid={`button-add-product-${product.id}`}>
         <Plus size={20} />
       </button>
     </div>
