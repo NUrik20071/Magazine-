@@ -121,7 +121,7 @@ const photoChoices = [
   '/images/terracotta-tray.png',
 ];
 const productImage = (product: Product, index: number) =>
-  product.imageUrl?.trim() || photoChoices[index % photoChoices.length];
+  normalizeSourceUrl(product.imageUrl?.trim() || photoChoices[index % photoChoices.length]);
 const money = (value: number) => `${new Intl.NumberFormat('ru-RU').format(value)} ₸`;
 
 function AdminHeaderLink() {
@@ -366,7 +366,7 @@ function Catalog() {
   });
   const listParams = useMemo(() => ({ ...(search.trim() ? { search: search.trim() } : {}), ...(category ? { category } : {}) }), [search, category]);
   const productsQuery = useListProducts(listParams);
-  useEffect(() => { fetch('/api/storefront/settings').then((r) => r.ok ? r.json() : null).then((config) => { if (config && config.theme && config.content && Array.isArray(config.blocks)) setStorefront({ ...defaultStorefront, ...config, theme: { ...defaultStorefront.theme, ...config.theme }, content: { ...defaultStorefront.content, ...config.content }, blocks: Array.isArray(config.blocks) ? config.blocks : [], workflows: Array.isArray(config.workflows) ? config.workflows : [] }); }).catch(() => undefined).finally(() => setStorefrontLoaded(true)); }, []);
+  useEffect(() => { fetch('/api/storefront/settings').then((r) => r.ok ? r.json() : null).then((config) => { if (config && config.theme && config.content && Array.isArray(config.blocks)) setStorefront({ ...defaultStorefront, ...config, theme: { ...defaultStorefront.theme, ...config.theme }, content: { ...defaultStorefront.content, ...config.content }, sections: { ...defaultStorefront.sections, ...(config.sections || {}) }, sectionOrder: Array.isArray(config.sectionOrder) ? config.sectionOrder : defaultStorefront.sectionOrder, blocks: Array.isArray(config.blocks) ? config.blocks : [], workflows: Array.isArray(config.workflows) ? config.workflows : [] }); }).catch(() => undefined).finally(() => setStorefrontLoaded(true)); }, []);
   const runWorkflows = (trigger: WorkflowTrigger, sourceId = 'any') => {
     for (const rule of storefront.workflows || []) {
       if (!rule.enabled || rule.trigger !== trigger) continue;
@@ -390,8 +390,8 @@ function Catalog() {
         el.classList.add('workflow-animate');
       });
       else if (rule.action === 'scroll' && target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      else if (rule.action === 'navigate' && rule.value) window.location.href = rule.value;
-      else if (rule.action === 'open-link' && rule.value) window.open(rule.value, '_blank', 'noopener,noreferrer');
+      else if (rule.action === 'navigate' && rule.value) window.location.href = normalizeSourceUrl(rule.value);
+      else if (rule.action === 'open-link' && rule.value) window.open(normalizeSourceUrl(rule.value), '_blank', 'noopener,noreferrer');
       else if (rule.action === 'play-video') targetList.forEach((el) => {
         const video = el.matches('video') ? el as HTMLVideoElement : el.querySelector('video');
         if (video) void video.play().catch(() => undefined);
@@ -518,7 +518,7 @@ function Catalog() {
       <div data-site-section="custom" data-element-id="custom-section" style={{ display: storefront.sections.custom ? undefined : 'none', order: Math.max(0, storefront.sectionOrder.indexOf('custom')) }}><StorefrontBlocks blocks={storefront.blocks} /></div>
       <section className="story-band" id="about" data-site-section="story" data-element-id="about" style={{ display: storefront.sections.story ? undefined : 'none', order: Math.max(0, storefront.sectionOrder.indexOf('story')) }}>
         <div className="story-inner">
-          <div><span className="eyebrow">{storefront.content.storyEyebrow}</span><h2>{storefront.content.storyTitle.split("\n").map((line, i) => <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>)}</h2><p>{storefront.content.storyText}</p><a className="quiet-link" href={storefront.content.storyLinkUrl || '#catalog'} data-element-id="story-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 9, fontSize: 12 }}>{storefront.content.storyLinkText} <ArrowRight size={14} /></a></div>
+          <div><span className="eyebrow">{storefront.content.storyEyebrow}</span><h2>{storefront.content.storyTitle.split("\n").map((line, i) => <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>)}</h2><p>{storefront.content.storyText}</p><a className="quiet-link" href={normalizeSourceUrl(storefront.content.storyLinkUrl || '#catalog')} data-element-id="story-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 9, fontSize: 12 }}>{storefront.content.storyLinkText} <ArrowRight size={14} /></a></div>
           <div className="story-mark">{storefront.content.storyQuote}</div>
         </div>
       </section>
@@ -703,7 +703,7 @@ function StorefrontSettingsEditor() {
             <div><small>{config.content.heroEyebrow}</small><h3 style={{ fontFamily: config.theme.headingFont }}>{config.content.heroTitle.replace(/\n/g, ' ')}</h3><p>{config.content.heroText}</p><span style={{ background: config.theme.accent, color: config.theme.accentText }}>{config.content.heroButtonText}</span></div>
             <div className="editor-mini-product" style={{ background: config.theme.cardBackground, borderRadius: config.theme.cardRadius }}><img src={config.content.heroImage || '/images/orbit-vase.png'} alt="" /><strong>Керамическая ваза</strong><small>12 000 ₸</small></div>
           </div>
-          <div className="editor-mini-ticker" style={{display:config.sections.ticker ? undefined : "none",order:Math.max(0,config.sectionOrder.indexOf("ticker"))}}>{config.content.ticker1}　•　{config.content.ticker2}　•　{config.content.ticker3}</div><section className="editor-mini-catalog" style={{display:config.sections.catalog ? undefined : "none",order:Math.max(0,config.sectionOrder.indexOf("catalog"))}}><small>{config.content.catalogEyebrow}</small><h3>{config.content.catalogTitle.replace(/\n/g, " ")}</h3><div className="editor-mini-cards">{[1,2,3].map(n => <div key={n} style={{ background: config.theme.cardBackground, borderRadius: config.theme.cardRadius }}><img src={n === 1 ? config.content.heroImage || "/images/orbit-vase.png" : n === 2 ? "/images/linen-lamp.png" : "/images/terracotta-tray.png"} alt="" /><span>Пример товара {n}</span><small>12 000 ₸</small></div>)}</div></section><div style={{display:config.sections.custom ? undefined : "none",order:Math.max(0,config.sectionOrder.indexOf("custom"))}}><StorefrontBlocks blocks={config.blocks} /></div><section className="editor-mini-story" style={{ background: config.theme.gradient,display:config.sections.story ? undefined : "none",order:Math.max(0,config.sectionOrder.indexOf("story")) }}><small>{config.content.storyEyebrow}</small><h3>{config.content.storyTitle.replace(/\n/g, " ")}</h3><p>{config.content.storyText}</p><blockquote>{config.content.storyQuote}</blockquote></section><footer className="editor-mini-footer" style={{display:config.sections.footer ? undefined : "none"}}><strong>{config.content.siteName}</strong><span>{config.content.footerLocation}</span><span>{config.content.footerNote}</span><small>© {new Date().getFullYear()} {config.content.copyrightLabel}</small></footer>
+          <div className="editor-mini-ticker" style={{display:config.sections.ticker ? undefined : "none",order:Math.max(0,config.sectionOrder.indexOf("ticker"))}}>{config.content.ticker1}　•　{config.content.ticker2}　•　{config.content.ticker3}</div><section className="editor-mini-catalog" style={{display:config.sections.catalog ? undefined : "none",order:Math.max(0,config.sectionOrder.indexOf("catalog"))}}><small>{config.content.catalogEyebrow}</small><h3>{config.content.catalogTitle.replace(/\n/g, " ")}</h3><div className="editor-mini-cards">{[1,2,3].map(n => <div key={n} style={{ background: config.theme.cardBackground, borderRadius: config.theme.cardRadius }}><img src={n === 1 ? config.content.heroImage || "/images/orbit-vase.png" : n === 2 ? "/images/linen-lamp.png" : "/images/terracotta-tray.png"} alt="" /><span>Пример товара {n}</span><small>12 000 ₸</small></div>)}</div></section><div style={{display:config.sections.custom ? undefined : "none",order:Math.max(0,config.sectionOrder.indexOf("custom"))}}><StorefrontBlocks blocks={config.blocks} /></div><section className="editor-mini-story" style={{ background: config.theme.gradient,display:config.sections.story ? undefined : "none",order:Math.max(0,config.sectionOrder.indexOf("story")) }}><small>{config.content.storyEyebrow}</small><h3>{config.content.storyTitle.replace(/\n/g, " ")}</h3><p>{config.content.storyText}</p><blockquote>{config.content.storyQuote}</blockquote></section><footer className="editor-mini-footer" style={{display:config.sections.footer ? undefined : "none",order:99}}><strong>{config.content.siteName}</strong><span>{config.content.footerLocation}</span><span>{config.content.footerNote}</span><small>© {new Date().getFullYear()} {config.content.copyrightLabel}</small></footer>
         </div>
       </div>
     </div>
