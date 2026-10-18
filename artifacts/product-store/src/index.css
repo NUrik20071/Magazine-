@@ -745,3 +745,17 @@ body { background: var(--site-background); color: var(--site-text); font-family:
   .editor-block-fields { grid-template-columns: 1fr; }
   .custom-blocks { padding: 14px; }
 }
+
+
+/* Theme tokens controlled by the admin visual editor */
+.announcement { background: var(--site-accent); color: var(--site-accent-text); }
+.brand, .icon-button, .hero h1, .quiet-link { color: var(--site-text); }
+.cta, .primary-button { background: var(--site-accent); border-color: var(--site-accent); color: var(--site-accent-text); }
+.cta:hover, .primary-button:hover { filter: brightness(1.08); }
+.product-card { color: var(--site-text); }
+.product-title, .product-price { color: var(--site-text); }
+.product-photo { border-radius: var(--site-card-radius) var(--site-card-radius) 0 0; }
+.story-band { background: var(--site-gradient); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}
