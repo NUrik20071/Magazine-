@@ -1,7 +1,9 @@
 import { sql } from "drizzle-orm";
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
 import {
   bigserial,
-  bytea,
+  customType,
   check,
   integer,
   jsonb,
