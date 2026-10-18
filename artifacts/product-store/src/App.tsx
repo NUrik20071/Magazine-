@@ -262,25 +262,40 @@ function CartDrawer({ items, onClose, onQty, onRemove, onOrderSubmitted }: {
 }
 
 
-type StorefrontBlock = { id: string; type: 'text' | 'image' | 'video' | 'audio' | 'button' | 'embed'; title?: string; text?: string; label?: string; url?: string; mediaUrl?: string; background?: string; color?: string; width?: string; animation?: string };
-type StorefrontConfig = { theme: { background: string; text: string; accent: string; accentText: string; cardBackground: string; gradient: string; font: string; headingFont: string; cardRadius: number; cardColumns: number; imageRatio: string; animation: string; animationDuration: number; colorAnimation: boolean }; content: { announcement: string; heroEyebrow: string; heroTitle: string; heroText: string; heroImage: string; heroImageLink: string; heroButtonText: string; storyTitle: string; storyText: string }; blocks: StorefrontBlock[] };
+type StorefrontBlock = { id: string; type: 'text' | 'image' | 'video' | 'audio' | 'button' | 'embed'; title?: string; text?: string; label?: string; url?: string; mediaUrl?: string; background?: string; color?: string; width?: string; columns?: number; height?: string; fontSize?: string; titleSize?: string; padding?: string; radius?: number; textAlign?: 'left' | 'center' | 'right'; objectFit?: 'cover' | 'contain'; targetBlank?: boolean; animation?: string };
+type StorefrontConfig = { theme: { background: string; text: string; accent: string; accentText: string; cardBackground: string; gradient: string; heroLayout: string; font: string; headingFont: string; cardRadius: number; cardColumns: number; imageRatio: string; animation: string; animationDuration: number; colorAnimation: boolean }; content: { announcement: string; heroEyebrow: string; heroTitle: string; heroText: string; heroImage: string; heroImageLink: string; heroButtonText: string; storyTitle: string; storyText: string }; blocks: StorefrontBlock[] };
 const defaultStorefront: StorefrontConfig = {
-  theme: { background: '#f5f1e8', text: '#244c43', accent: '#244c43', accentText: '#fffaf1', cardBackground: '#fffdf7', gradient: 'linear-gradient(135deg, #f5f1e8 0%, #e5ded0 100%)', font: 'DM Sans', headingFont: 'Cormorant Garamond', cardRadius: 8, cardColumns: 3, imageRatio: '4 / 5', animation: 'lift', animationDuration: 240, colorAnimation: false },
+  theme: { background: '#f5f1e8', text: '#244c43', accent: '#244c43', accentText: '#fffaf1', cardBackground: '#fffdf7', gradient: 'linear-gradient(135deg, #f5f1e8 0%, #e5ded0 100%)', font: 'DM Sans', headingFont: 'Cormorant Garamond', cardRadius: 8, cardColumns: 3, imageRatio: '4 / 5', animation: 'lift', animationDuration: 240, colorAnimation: false, heroLayout: 'split' },
   content: { announcement: 'Доставка по Казахстану · бесплатно от 35 000 ₸', heroEyebrow: 'Маленькая коллекция для дома', heroTitle: 'Жить\nчуть тише.', heroText: 'Вещи, которые не требуют внимания — только становятся частью хорошего дня. Собираем их небольшими партиями.', heroImage: '/images/orbit-vase.png', heroImageLink: '', heroButtonText: 'Смотреть коллекцию', storyTitle: 'Не больше.\nЛучше.', storyText: '«Тихо» — маленький магазин вещей, которые приятно держать рядом.' },
   blocks: [],
 };
 function StorefrontBlocks({ blocks }: { blocks: StorefrontBlock[] }) {
   if (!blocks.length) return null;
   return <section className="custom-blocks">{blocks.map((block) => {
-    const style: any = { background: block.background || 'transparent', color: block.color || 'inherit', width: block.width || '100%' };
+    const columns = Math.max(1, Math.min(12, Number(block.columns ?? 12)));
+    const mediaHeight = block.height && block.height !== 'auto' ? block.height : '640px';
+    const style: any = {
+      background: block.background || 'transparent',
+      color: block.color || 'inherit',
+      width: block.width || '100%',
+      minHeight: block.height && block.height !== 'auto' ? block.height : undefined,
+      fontSize: block.fontSize || undefined,
+      padding: block.padding || '22px',
+      borderRadius: String(Math.max(0, Math.min(48, Number(block.radius ?? 0)))) + 'px',
+      textAlign: block.textAlign || 'left',
+      gridColumn: 'span ' + columns,
+    };
     let content: ReactNode;
-    if (block.type === 'text') content = <div className="custom-block-copy"><h2>{block.title}</h2><p>{block.text}</p></div>;
-    else if (block.type === 'image') content = <img className="custom-block-media" src={block.mediaUrl} alt={block.title || ''} />;
-    else if (block.type === 'video') content = <video className="custom-block-media" src={block.mediaUrl} controls playsInline />;
+    if (block.type === 'text') content = <div className="custom-block-copy"><h2 style={{ fontSize: block.titleSize && block.titleSize !== 'inherit' ? block.titleSize : undefined }}>{block.title}</h2><p>{block.text}</p></div>;
+    else if (block.type === 'image') content = <img className="custom-block-media" style={{ objectFit: block.objectFit || 'contain', maxHeight: mediaHeight }} src={block.mediaUrl} alt={block.title || ''} />;
+    else if (block.type === 'video') content = <video className="custom-block-media" style={{ objectFit: block.objectFit || 'contain', maxHeight: mediaHeight }} src={block.mediaUrl} controls playsInline />;
     else if (block.type === 'audio') content = <audio src={block.mediaUrl} controls />;
     else if (block.type === 'embed') content = <iframe className="custom-block-embed" src={block.mediaUrl} title={block.title || 'Встроенный контент'} loading="lazy" allowFullScreen />;
     else content = <span>{block.label || block.title || 'Открыть'} <ExternalLink size={14} /></span>;
-    return <div className={'custom-block custom-block-' + block.type} key={block.id} style={style}>{block.url ? <a href={block.url} target={/^https?:/.test(block.url) ? '_blank' : undefined} rel="noreferrer">{content}</a> : content}</div>;
+    const externalLink = /^https?:/.test(block.url || '');
+    return <div className={'custom-block custom-block-' + block.type} key={block.id} data-animation={block.animation || 'fade'} data-gradient={/gradient\s*\(/i.test(block.background || '') ? 'true' : 'false'} style={style}>
+      {block.url ? <a href={block.url} target={block.targetBlank || externalLink ? '_blank' : undefined} rel={block.targetBlank || externalLink ? 'noreferrer' : undefined}>{content}</a> : content}
+    </div>;
   })}</section>;
 }
 function ProductDetailModal({ product, onClose, onAdd }: { product: Product; onClose: () => void; onAdd: (product: Product) => void }) {
@@ -305,9 +320,34 @@ function Catalog() {
   const listParams = useMemo(() => ({ ...(search.trim() ? { search: search.trim() } : {}), ...(category ? { category } : {}) }), [search, category]);
   const productsQuery = useListProducts(listParams);
   useEffect(() => { fetch('/api/storefront/settings').then((r) => r.ok ? r.json() : null).then((config) => { if (config && config.theme && config.content && Array.isArray(config.blocks)) setStorefront({ ...defaultStorefront, ...config, theme: { ...defaultStorefront.theme, ...config.theme }, content: { ...defaultStorefront.content, ...config.content } }); }).catch(() => undefined); }, []);
-  useEffect(() => { const root = document.documentElement; root.style.setProperty('--site-background', storefront.theme.background); root.style.setProperty('--site-text', storefront.theme.text); root.style.setProperty('--site-accent', storefront.theme.accent); root.style.setProperty('--site-accent-text', storefront.theme.accentText); root.style.setProperty('--site-card-background', storefront.theme.cardBackground); root.style.setProperty('--site-gradient', storefront.theme.gradient); root.style.setProperty('--site-font', '"' + storefront.theme.font + '", sans-serif'); root.style.setProperty('--site-heading-font', '"' + storefront.theme.headingFont + '", serif'); root.style.setProperty('--site-card-radius', storefront.theme.cardRadius + 'px'); root.style.setProperty('--site-card-columns', String(storefront.theme.cardColumns)); root.style.setProperty('--site-image-ratio', storefront.theme.imageRatio); root.style.setProperty('--site-animation-duration', storefront.theme.animationDuration + 'ms'); root.dataset.siteAnimation = storefront.theme.animation; root.dataset.colorAnimation = String(storefront.theme.colorAnimation); }, [storefront]);
+  useEffect(() => { const root = document.documentElement; root.style.setProperty('--site-background', storefront.theme.background); root.style.setProperty('--site-text', storefront.theme.text); root.style.setProperty('--site-accent', storefront.theme.accent); root.style.setProperty('--site-accent-text', storefront.theme.accentText); root.style.setProperty('--site-card-background', storefront.theme.cardBackground); root.style.setProperty('--site-gradient', storefront.theme.gradient); root.style.setProperty('--site-font', '"' + storefront.theme.font + '", sans-serif'); root.style.setProperty('--site-heading-font', '"' + storefront.theme.headingFont + '", serif'); root.style.setProperty('--site-card-radius', storefront.theme.cardRadius + 'px'); root.style.setProperty('--site-card-columns', String(storefront.theme.cardColumns)); root.style.setProperty('--site-image-ratio', storefront.theme.imageRatio); root.style.setProperty('--site-animation-duration', storefront.theme.animationDuration + 'ms'); root.dataset.siteAnimation = storefront.theme.animation; root.dataset.colorAnimation = String(storefront.theme.colorAnimation); root.dataset.siteHeroLayout = storefront.theme.heroLayout || 'split'; }, [storefront]);
   const summaryQuery = useGetStoreSummary();
-  const products = productsQuery.data ?? [];
+  const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
+  useEffect(() => {
+    const syncProductFromUrl = () => {
+      const slug = new URL(window.location.href).searchParams.get('product');
+      setSelectedProduct(slug ? products.find((item) => item.slug === slug) ?? null : null);
+    };
+    syncProductFromUrl();
+    window.addEventListener('popstate', syncProductFromUrl);
+    return () => window.removeEventListener('popstate', syncProductFromUrl);
+  }, [products]);
+  const openProduct = (product: Product) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('product', product.slug);
+    window.history.pushState({ productSlug: product.slug }, '', url.toString());
+    setSelectedProduct(product);
+  };
+  const closeProduct = () => {
+    if (window.history.state && typeof window.history.state === 'object' && 'productSlug' in window.history.state) {
+      window.history.back();
+      return;
+    }
+    setSelectedProduct(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('product');
+    window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+  };
   useEffect(() => {
     if (!productsQuery.data) return;
     const latestById = new Map(productsQuery.data.map((product) => [product.id, product]));
@@ -339,7 +379,7 @@ function Catalog() {
   return <div className="shop-shell">
     <ShopHeader count={count} onCart={() => setCartOpen(true)} announcement={storefront.content.announcement} />
     <main>
-      <section className="hero">
+      <section className="hero" data-layout={storefront.theme.heroLayout || 'split'}>
         <div className="hero-copy">
           <span className="eyebrow">{storefront.content.heroEyebrow}</span>
           <h1>{storefront.content.heroTitle.split("\n").map((line, i) => <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>)}</h1>
@@ -369,7 +409,7 @@ function Catalog() {
         </div>
         {productsQuery.isLoading ? <div className="product-grid" aria-label="Загрузка товаров">{[1, 2, 3, 4].map((n) => <div className="skeleton" key={n} style={{ aspectRatio: '.83' }} />)}</div> :
           productsQuery.isError ? <div className="error-state"><h3 className="serif">Не удалось загрузить коллекцию</h3><p>Проверьте соединение и попробуйте ещё раз.</p><button className="primary-button" onClick={() => productsQuery.refetch()} data-testid="button-retry-products">Повторить</button></div> :
-            products.length ? <div className="product-grid">{products.map((product, index) => <ProductCard key={product.id} product={product} index={index} onAdd={addProduct} onOpen={setSelectedProduct} />)}</div> :
+            products.length ? <div className="product-grid">{products.map((product, index) => <ProductCard key={product.id} product={product} index={index} onAdd={addProduct} onOpen={openProduct} />)}</div> :
               <div className="empty-state" data-testid="empty-products">Коллекция пока собирается.<br /><span style={{ fontSize: 13 }}>Загляните чуть позже — здесь появятся новые находки.</span></div>}
       </section>
       <StorefrontBlocks blocks={storefront.blocks} />
@@ -381,7 +421,8 @@ function Catalog() {
       </section>
     </main>
     <footer className="footer"><Link href="/" className="brand">тихо.<small>дом и повседневность</small></Link><div className="footer-note">Алматы · Казахстан<br />Корзина хранится на устройстве</div><span className="mono" style={{ fontSize: 9 }}>© {new Date().getFullYear()} ТИХО</span></footer>
-    {selectedProduct && <ProductDetailModal product={selectedProduct} onClose={() => setSelectedProduct(null)} onAdd={addProduct} />}\n    {cartOpen && <CartDrawer items={cart} onClose={() => setCartOpen(false)} onQty={changeQty} onRemove={removeItem} onOrderSubmitted={() => setCart([])} />}
+    {selectedProduct && <ProductDetailModal product={selectedProduct} onClose={closeProduct} onAdd={addProduct} />}
+    {cartOpen && <CartDrawer items={cart} onClose={() => setCartOpen(false)} onQty={changeQty} onRemove={removeItem} onOrderSubmitted={() => setCart([])} />}
   </div>;
 }
 
@@ -430,7 +471,7 @@ function StorefrontSettingsEditor() {
   useEffect(() => { fetch('/api/storefront/settings').then((r) => r.json()).then((data) => setConfig({ ...defaultStorefront, ...data, theme: { ...defaultStorefront.theme, ...(data.theme || {}) }, content: { ...defaultStorefront.content, ...(data.content || {}) }, blocks: Array.isArray(data.blocks) ? data.blocks : [] })).catch(() => setError('Не удалось загрузить настройки')).finally(() => setLoading(false)); }, []);
   const updateTheme = (key: keyof StorefrontConfig['theme'], value: string | number | boolean) => setConfig((c) => ({ ...c, theme: { ...c.theme, [key]: value } }));
   const updateContent = (key: keyof StorefrontConfig['content'], value: string) => setConfig((c) => ({ ...c, content: { ...c.content, [key]: value } }));
-  const updateBlock = (index: number, key: keyof StorefrontBlock, value: string) => setConfig((c) => ({ ...c, blocks: c.blocks.map((b, i) => i === index ? { ...b, [key]: value } : b) }));
+  const updateBlock = (index: number, key: keyof StorefrontBlock, value: string | number | boolean) => setConfig((c) => ({ ...c, blocks: c.blocks.map((b, i) => i === index ? { ...b, [key]: value } : b) }));
   async function save() {
     setSaving(true); setError(''); setSaved(false);
     try {
@@ -443,7 +484,7 @@ function StorefrontSettingsEditor() {
     finally { setSaving(false); }
   }
   function addBlock(type: StorefrontBlock['type']) {
-    setConfig((c) => ({ ...c, blocks: [...c.blocks, { id: 'block-' + Date.now(), type, title: type === 'text' ? 'Новый блок' : '', text: '', label: type === 'button' ? 'Открыть ссылку' : '', url: '', mediaUrl: '', background: '#f5f1e8', color: '#244c43', width: '100%', animation: 'lift' }] }));
+    setConfig((c) => ({ ...c, blocks: [...c.blocks, { id: 'block-' + Date.now(), type, title: type === 'text' ? 'Новый блок' : '', text: '', label: type === 'button' ? 'Открыть ссылку' : '', url: '', mediaUrl: '', background: '#f5f1e8', color: '#244c43', width: '100%', animation: 'fade', columns: 12, height: 'auto', fontSize: '16px', titleSize: 'inherit', padding: '22px', radius: 0, textAlign: 'left', objectFit: 'contain', targetBlank: false }] }));
   }
   function moveBlock(index: number, direction: number) {
     setConfig((c) => { const blocks = [...c.blocks]; const target = index + direction; if (target < 0 || target >= blocks.length) return c; const temp = blocks[index]; blocks[index] = blocks[target]; blocks[target] = temp; return { ...c, blocks }; });
@@ -453,15 +494,57 @@ function StorefrontSettingsEditor() {
     <div className="visual-editor-heading"><div><span className="eyebrow">Редактор сайта</span><h2>Оформление витрины</h2><p>Изменения сохраняются в базе данных и сразу применяются к публичному сайту.</p></div><button className="primary-button" onClick={() => void save()} disabled={saving}>{saving ? 'Сохраняем…' : 'Опубликовать оформление'}</button></div>
     {error && <p className="form-error" role="alert">{error}</p>}{saved && <p className="editor-saved" role="status">Оформление сохранено.</p>}
     <div className="visual-editor-grid">
-      <div className="editor-group"><h3>Цвета и шрифты</h3><label className="form-field">Фон сайта<input type="color" value={config.theme.background} onChange={e => updateTheme('background', e.target.value)} /></label><label className="form-field">Цвет текста<input type="color" value={config.theme.text} onChange={e => updateTheme('text', e.target.value)} /></label><label className="form-field">Основной цвет / кнопки<input type="color" value={config.theme.accent} onChange={e => updateTheme('accent', e.target.value)} /></label><label className="form-field">Фон карточек<input type="color" value={config.theme.cardBackground} onChange={e => updateTheme('cardBackground', e.target.value)} /></label><label className="form-field">Градиент CSS<input value={config.theme.gradient} onChange={e => updateTheme('gradient', e.target.value)} placeholder="linear-gradient(...)" /></label><label className="form-field">Шрифт текста<select value={config.theme.font} onChange={e => updateTheme('font', e.target.value)}><option>DM Sans</option><option>Arial</option><option>Georgia</option><option>Inter</option><option>system-ui</option></select></label><label className="form-field">Шрифт заголовков<select value={config.theme.headingFont} onChange={e => updateTheme('headingFont', e.target.value)}><option>Cormorant Garamond</option><option>Georgia</option><option>Arial</option><option>DM Sans</option></select></label></div>
-      <div className="editor-group"><h3>Сетка и анимации</h3><label className="form-field">Колонки каталога<select value={config.theme.cardColumns} onChange={e => updateTheme('cardColumns', Number(e.target.value))}><option value={2}>2 колонки</option><option value={3}>3 колонки</option><option value={4}>4 колонки</option><option value={5}>5 колонок</option></select></label><label className="form-field">Пропорции фото<select value={config.theme.imageRatio} onChange={e => updateTheme('imageRatio', e.target.value)}><option value="1 / 1">Квадрат 1:1</option><option value="4 / 5">Портрет 4:5</option><option value="3 / 2">Альбом 3:2</option><option value="16 / 9">Широкий 16:9</option></select></label><label className="form-field">Скругление карточек (px)<input type="number" min="0" max="40" value={config.theme.cardRadius} onChange={e => updateTheme('cardRadius', Number(e.target.value))} /></label><label className="form-field">Анимация<select value={config.theme.animation} onChange={e => updateTheme('animation', e.target.value)}><option value="lift">Подъём при наведении</option><option value="fade">Плавное появление</option><option value="glow">Свечение</option><option value="none">Без анимации</option></select></label><label className="form-field">Длительность (мс)<input type="number" min="0" max="2000" step="50" value={config.theme.animationDuration} onChange={e => updateTheme('animationDuration', Number(e.target.value))} /></label><label className="editor-check"><input type="checkbox" checked={config.theme.colorAnimation} onChange={e => updateTheme('colorAnimation', e.target.checked)} /> Анимировать цветовые переходы</label></div>
+      <div className="editor-group"><h3>Цвета и шрифты</h3><label className="form-field">Фон сайта<input type="color" value={config.theme.background} onChange={e => updateTheme('background', e.target.value)} /></label><label className="form-field">Цвет текста<input type="color" value={config.theme.text} onChange={e => updateTheme('text', e.target.value)} /></label><label className="form-field">Основной цвет / кнопки<input type="color" value={config.theme.accent} onChange={e => updateTheme('accent', e.target.value)} /></label><label className="form-field">Цвет текста кнопок<input type="color" value={config.theme.accentText} onChange={e => updateTheme('accentText', e.target.value)} /></label><label className="form-field">Фон карточек<input type="color" value={config.theme.cardBackground} onChange={e => updateTheme('cardBackground', e.target.value)} /></label><label className="form-field">Градиент CSS<input value={config.theme.gradient} onChange={e => updateTheme('gradient', e.target.value)} placeholder="linear-gradient(...)" /></label><label className="form-field">Шрифт текста<select value={config.theme.font} onChange={e => updateTheme('font', e.target.value)}><option>DM Sans</option><option>Arial</option><option>Georgia</option><option>Inter</option><option>system-ui</option></select></label><label className="form-field">Шрифт заголовков<select value={config.theme.headingFont} onChange={e => updateTheme('headingFont', e.target.value)}><option>Cormorant Garamond</option><option>Georgia</option><option>Arial</option><option>DM Sans</option></select></label></div>
+      <div className="editor-group"><h3>Сетка и анимации</h3><label className="form-field">Колонки каталога<select value={config.theme.cardColumns} onChange={e => updateTheme('cardColumns', Number(e.target.value))}><option value={2}>2 колонки</option><option value={3}>3 колонки</option><option value={4}>4 колонки</option><option value={5}>5 колонок</option></select></label><label className="form-field">Схема главного экрана<select value={config.theme.heroLayout || 'split'} onChange={e => updateTheme('heroLayout', e.target.value)}><option value="split">Текст слева, фото справа</option><option value="image-left">Фото слева, текст справа</option><option value="centered">По центру</option></select></label><label className="form-field">Пропорции фото<select value={config.theme.imageRatio} onChange={e => updateTheme('imageRatio', e.target.value)}><option value="1 / 1">Квадрат 1:1</option><option value="4 / 5">Портрет 4:5</option><option value="3 / 2">Альбом 3:2</option><option value="16 / 9">Широкий 16:9</option></select></label><label className="form-field">Скругление карточек (px)<input type="number" min="0" max="40" value={config.theme.cardRadius} onChange={e => updateTheme('cardRadius', Number(e.target.value))} /></label><label className="form-field">Анимация<select value={config.theme.animation} onChange={e => updateTheme('animation', e.target.value)}><option value="lift">Подъём при наведении</option><option value="fade">Плавное появление</option><option value="glow">Свечение</option><option value="none">Без анимации</option></select></label><label className="form-field">Длительность (мс)<input type="number" min="0" max="2000" step="50" value={config.theme.animationDuration} onChange={e => updateTheme('animationDuration', Number(e.target.value))} /></label><label className="editor-check"><input type="checkbox" checked={config.theme.colorAnimation} onChange={e => updateTheme('colorAnimation', e.target.checked)} /> Анимировать цветовые переходы</label></div>
       <div className="editor-group editor-group-wide"><h3>Тексты, изображения и ссылки</h3><label className="form-field">Бегущая строка / объявление<input value={config.content.announcement} onChange={e => updateContent('announcement', e.target.value)} /></label><label className="form-field">Надзаголовок главного экрана<input value={config.content.heroEyebrow} onChange={e => updateContent('heroEyebrow', e.target.value)} /></label><label className="form-field">Заголовок (перенос строки через Enter)<textarea rows={2} value={config.content.heroTitle} onChange={e => updateContent('heroTitle', e.target.value)} /></label><label className="form-field">Описание главного экрана<textarea rows={3} value={config.content.heroText} onChange={e => updateContent('heroText', e.target.value)} /></label><label className="form-field">Текст кнопки<input value={config.content.heroButtonText} onChange={e => updateContent('heroButtonText', e.target.value)} /></label><label className="form-field">URL картинки главного экрана<input value={config.content.heroImage} onChange={e => updateContent('heroImage', e.target.value)} placeholder="/images/..." /></label><label className="form-field">Ссылка при нажатии на картинку<input value={config.content.heroImageLink} onChange={e => updateContent('heroImageLink', e.target.value)} placeholder="https://... или #catalog" /></label><label className="form-field">Заголовок блока «О нас»<textarea rows={2} value={config.content.storyTitle} onChange={e => updateContent('storyTitle', e.target.value)} /></label><label className="form-field">Текст «О нас»<textarea rows={3} value={config.content.storyText} onChange={e => updateContent('storyText', e.target.value)} /></label></div>
     </div>
     <div className="editor-group editor-group-wide"><div className="editor-blocks-heading"><div><h3>Свободные блоки страницы</h3><p>Меняйте порядок, размер, цвет, текст, медиа и ссылку каждого блока.</p></div><div className="editor-add-blocks">{(['text','image','video','audio','button','embed'] as StorefrontBlock['type'][]).map(type => <button key={type} className="secondary-button" onClick={() => addBlock(type)}>+ {({text:'Текст',image:'Фото',video:'Видео',audio:'Аудио',button:'Кнопка',embed:'Встраивание'} as Record<string,string>)[type]}</button>)}</div></div>
       {config.blocks.map((block, index) => <div className="editor-block" key={block.id}><div className="editor-block-top"><strong>{index + 1}. {block.type}</strong><div><button className="plain-icon" onClick={() => moveBlock(index, -1)} disabled={index === 0} aria-label="Переместить выше"><ChevronUp size={16}/></button><button className="plain-icon" onClick={() => moveBlock(index, 1)} disabled={index === config.blocks.length - 1} aria-label="Переместить ниже"><ChevronDown size={16}/></button><button className="plain-icon" onClick={() => setConfig(c => ({...c, blocks:c.blocks.filter((_,i)=>i!==index)}))} aria-label="Удалить блок"><Trash2 size={15}/></button></div></div>
-        <div className="editor-block-fields"><label className="form-field">Заголовок / подпись<input value={block.title || ''} onChange={e => updateBlock(index, 'title', e.target.value)} /></label>{(block.type === 'text') && <label className="form-field">Текст<textarea rows={3} value={block.text || ''} onChange={e => updateBlock(index, 'text', e.target.value)} /></label>}{block.type === 'button' && <label className="form-field">Текст кнопки<input value={block.label || ''} onChange={e => updateBlock(index, 'label', e.target.value)} /></label>}{(['image','video','audio','embed'] as string[]).includes(block.type) && <label className="form-field">URL медиа / встраивания<input value={block.mediaUrl || ''} onChange={e => updateBlock(index, 'mediaUrl', e.target.value)} /></label>}<label className="form-field">Ссылка при нажатии<input value={block.url || ''} onChange={e => updateBlock(index, 'url', e.target.value)} placeholder="https://... или /catalog" /></label><label className="form-field">Фон<input value={block.background || ''} onChange={e => updateBlock(index, 'background', e.target.value)} placeholder="#ffffff или linear-gradient(...)" /></label><label className="form-field">Цвет текста<input value={block.color || ''} onChange={e => updateBlock(index, 'color', e.target.value)} placeholder="#244c43" /></label><label className="form-field">Ширина<input value={block.width || '100%'} onChange={e => updateBlock(index, 'width', e.target.value)} placeholder="100%, 50%, 600px" /></label></div>
+        <div className="editor-block-fields">
+          <label className="form-field">Заголовок / подпись<input value={block.title || ''} onChange={e => updateBlock(index, 'title', e.target.value)} /></label>
+          {block.type === 'text' && <label className="form-field">Текст<textarea rows={3} value={block.text || ''} onChange={e => updateBlock(index, 'text', e.target.value)} /></label>}
+          {block.type === 'button' && <label className="form-field">Текст кнопки<input value={block.label || ''} onChange={e => updateBlock(index, 'label', e.target.value)} /></label>}
+          {(['image', 'video', 'audio', 'embed'] as string[]).includes(block.type) && <label className="form-field">URL медиа / встраивания<input value={block.mediaUrl || ''} onChange={e => updateBlock(index, 'mediaUrl', e.target.value)} /></label>}
+          <label className="form-field">Ссылка при нажатии<input value={block.url || ''} onChange={e => updateBlock(index, 'url', e.target.value)} placeholder="https://... или #catalog" /></label>
+          <label className="form-field">Фон / градиент<input value={block.background || ''} onChange={e => updateBlock(index, 'background', e.target.value)} placeholder="#ffffff или linear-gradient(...)" /></label>
+          <label className="form-field">Цвет текста<input value={block.color || ''} onChange={e => updateBlock(index, 'color', e.target.value)} placeholder="#244c43" /></label>
+          <label className="form-field">Ширина внутри сетки<input value={block.width || '100%'} onChange={e => updateBlock(index, 'width', e.target.value)} placeholder="100%, 50%, 600px" /></label>
+          <label className="form-field">Размер сетки<select value={block.columns ?? 12} onChange={e => updateBlock(index, 'columns', Number(e.target.value))}><option value={12}>Во всю ширину</option><option value={8}>2/3 строки</option><option value={6}>Половина</option><option value={4}>1/3 строки</option><option value={3}>1/4 строки</option></select></label>
+          <label className="form-field">Высота / минимум<input value={block.height || 'auto'} onChange={e => updateBlock(index, 'height', e.target.value)} placeholder="auto, 260px, 40vh" /></label>
+          <label className="form-field">Размер текста<input value={block.fontSize || '16px'} onChange={e => updateBlock(index, 'fontSize', e.target.value)} placeholder="16px, 1.2rem" /></label>
+          {block.type === 'text' && <label className="form-field">Размер заголовка<input value={block.titleSize || 'inherit'} onChange={e => updateBlock(index, 'titleSize', e.target.value)} placeholder="inherit, 32px, 2rem" /></label>}
+          <label className="form-field">Внутренние отступы<input value={block.padding || '22px'} onChange={e => updateBlock(index, 'padding', e.target.value)} placeholder="22px, 2rem" /></label>
+          <label className="form-field">Скругление (px)<input type="number" min="0" max="48" value={block.radius ?? 0} onChange={e => updateBlock(index, 'radius', Number(e.target.value))} /></label>
+          <label className="form-field">Выравнивание текста<select value={block.textAlign || 'left'} onChange={e => updateBlock(index, 'textAlign', e.target.value)}><option value="left">Слева</option><option value="center">По центру</option><option value="right">Справа</option></select></label>
+          <label className="form-field">Анимация блока<select value={block.animation || 'fade'} onChange={e => updateBlock(index, 'animation', e.target.value)}><option value="fade">Появление</option><option value="lift">Подъём</option><option value="glow">Свечение</option><option value="float">Плавное движение</option><option value="none">Без анимации</option></select></label>
+          {(['image', 'video'] as string[]).includes(block.type) && <label className="form-field">Вписывание медиа<select value={block.objectFit || 'contain'} onChange={e => updateBlock(index, 'objectFit', e.target.value)}><option value="contain">Вписать целиком</option><option value="cover">Заполнить блок</option></select></label>}
+          <label className="editor-check"><input type="checkbox" checked={block.targetBlank ?? false} onChange={e => updateBlock(index, 'targetBlank', e.target.checked)} /> Открывать ссылку в новой вкладке</label>
+        </div>
       </div>)}
       {!config.blocks.length && <p className="editor-empty">Пока нет блоков. Добавьте текст, картинку, видео, аудио или кнопку выше.</p>}
+      <div className="editor-live-preview">
+        <div className="editor-live-preview-head"><strong>ЖИВОЙ ПРЕДПРОСМОТР</strong><span>Изменяется вместе с настройками выше</span></div>
+        <div className="editor-live-preview-store" style={{
+          background: config.theme.background,
+          color: config.theme.text,
+          fontFamily: config.theme.font,
+          ['--site-accent' as any]: config.theme.accent,
+          ['--site-accent-text' as any]: config.theme.accentText,
+          ['--site-card-background' as any]: config.theme.cardBackground,
+          ['--site-gradient' as any]: config.theme.gradient,
+          ['--site-font' as any]: '"' + config.theme.font + '", sans-serif',
+          ['--site-heading-font' as any]: '"' + config.theme.headingFont + '", serif',
+          ['--site-card-radius' as any]: String(config.theme.cardRadius) + 'px',
+          ['--site-animation-duration' as any]: String(config.theme.animationDuration) + 'ms',
+        } as any}>
+          <div className="editor-mini-site-head"><strong>тихо.</strong><span>КАТАЛОГ · ПРЕДПРОСМОТР</span></div>
+          <div className="editor-mini-hero" style={{ background: config.theme.gradient }}>
+            <div><small>{config.content.heroEyebrow}</small><h3 style={{ fontFamily: config.theme.headingFont }}>{config.content.heroTitle.replace(/\n/g, ' ')}</h3><p>{config.content.heroText}</p><span style={{ background: config.theme.accent, color: config.theme.accentText }}>{config.content.heroButtonText}</span></div>
+            <div className="editor-mini-product" style={{ background: config.theme.cardBackground, borderRadius: config.theme.cardRadius }}><img src={config.content.heroImage || '/images/orbit-vase.png'} alt="" /><strong>Керамическая ваза</strong><small>12 000 ₸</small></div>
+          </div>
+          <StorefrontBlocks blocks={config.blocks} />
+        </div>
+      </div>
     </div>
     <div className="visual-editor-bottom"><button className="primary-button" onClick={() => void save()} disabled={saving}>{saving ? 'Сохраняем…' : 'Сохранить и опубликовать'}</button></div>
   </section>;

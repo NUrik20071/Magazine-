@@ -8,7 +8,7 @@ const defaults = {
   theme: {
     background: "#f5f1e8", text: "#244c43", accent: "#244c43", accentText: "#fffaf1",
     cardBackground: "#fffdf7", gradient: "linear-gradient(135deg, #f5f1e8 0%, #e5ded0 100%)",
-    font: "DM Sans", headingFont: "Cormorant Garamond", cardRadius: 8, cardColumns: 3,
+    font: "DM Sans", headingFont: "Cormorant Garamond", heroLayout: "split", cardRadius: 8, cardColumns: 3,
     imageRatio: "4 / 5", animation: "lift", animationDuration: 240, colorAnimation: false,
   },
   content: {
@@ -53,12 +53,20 @@ function validConfig(value: unknown): value is Record<string, any> {
   if (config.content.heroImageLink !== undefined && !validUrl(config.content.heroImageLink)) return false;
   if (config.content.heroImage !== undefined && !validUrl(config.content.heroImage)) return false;
   if (config.blocks.length > 40) return false;
+  if (config.theme.heroLayout !== undefined && !["split", "image-left", "centered"].includes(config.theme.heroLayout)) return false;
   const allowedTypes = new Set(["text", "image", "video", "audio", "button", "embed"]);
+  const allowedAnimations = new Set(["fade", "lift", "glow", "float", "none"]);
   for (const block of config.blocks) {
     if (!block || typeof block !== "object" || !allowedTypes.has(block.type)) return false;
     if (typeof block.id !== "string" || block.id.length > 80) return false;
     for (const key of ["url", "mediaUrl"]) if (block[key] !== undefined && !validUrl(block[key])) return false;
-    for (const key of ["title", "text", "label", "url", "mediaUrl", "background", "color", "width", "animation"]) {
+    if (block.columns !== undefined && (!Number.isInteger(block.columns) || block.columns < 1 || block.columns > 12)) return false;
+    if (block.radius !== undefined && (!Number.isInteger(block.radius) || block.radius < 0 || block.radius > 48)) return false;
+    if (block.animation !== undefined && (typeof block.animation !== "string" || !allowedAnimations.has(block.animation))) return false;
+    if (block.textAlign !== undefined && !["left", "center", "right"].includes(block.textAlign)) return false;
+    if (block.objectFit !== undefined && !["cover", "contain"].includes(block.objectFit)) return false;
+    if (block.targetBlank !== undefined && typeof block.targetBlank !== "boolean") return false;
+    for (const key of ["title", "titleSize", "text", "label", "url", "mediaUrl", "background", "color", "width", "height", "fontSize", "padding", "textAlign", "objectFit", "animation"]) {
       if (block[key] !== undefined && (typeof block[key] !== "string" || block[key].length > 4000)) return false;
     }
   }
