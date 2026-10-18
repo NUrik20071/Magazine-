@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { ClerkProvider, SignIn, SignUp, useAuth, useClerk } from '@clerk/react';
+import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from '@clerk/react';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
 import { ruRU } from '@clerk/localizations';
 import {
@@ -18,8 +18,8 @@ import {
 } from '@workspace/api-client-react';
 import type { Product } from '@workspace/api-client-react';
 import {
-  ArrowDownRight, ArrowRight, Leaf, Minus, Package, Pencil,
-  Plus, Search, ShoppingBag, Trash2, X,
+  ArrowDownRight, ArrowRight, Leaf, LogOut, Minus, Package, Pencil,
+  Plus, Search, ShoppingBag, Trash2, UserRound, X,
 } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -146,6 +146,21 @@ function AdminHeaderLink() {
 }
 
 function ShopHeader({ count, onCart }: { count: number; onCart: () => void }) {
+  const { isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const [signingOut, setSigningOut] = useState(false);
+  const displayName = user?.fullName || user?.firstName || user?.primaryEmailAddress?.emailAddress || 'Мой аккаунт';
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await signOut({ redirectUrl: `${basePath}/` || '/' });
+    } finally {
+      setSigningOut(false);
+    }
+  }
+
   return <>
     <div className="announcement">Доставка по Казахстану · бесплатно от 35 000 ₸</div>
     <header className="header">
@@ -154,7 +169,15 @@ function ShopHeader({ count, onCart }: { count: number; onCart: () => void }) {
         <a className="quiet-link" href="#catalog">Каталог</a>
         <a className="quiet-link" href="#about">О нас</a>
         <AdminHeaderLink />
-        <Link className="quiet-link" href="/sign-in" data-testid="link-sign-in">Войти</Link>
+        {!isLoaded ? <span className="account-loading" role="status">Проверяем аккаунт…</span> : isSignedIn && user ? <>
+          <div className="account-profile" data-testid="account-profile" title={user.primaryEmailAddress?.emailAddress || displayName}>
+            {user.imageUrl ? <img className="account-avatar" src={user.imageUrl} alt="" /> : <span className="account-avatar-fallback"><UserRound size={16} /></span>}
+            <span className="account-profile-text"><strong>{displayName}</strong><small>{user.primaryEmailAddress?.emailAddress || 'Вы вошли в аккаунт'}</small></span>
+          </div>
+          <button className="account-logout" onClick={() => void handleSignOut()} disabled={signingOut} data-testid="button-sign-out">
+            <LogOut size={15} /><span>{signingOut ? 'Выходим…' : 'Выйти'}</span>
+          </button>
+        </> : <Link className="quiet-link" href="/sign-in" data-testid="link-sign-in">Войти</Link>}
         <button className="icon-button" onClick={onCart} data-testid="button-open-cart" aria-label="Открыть корзину">
           <ShoppingBag size={18} strokeWidth={1.5} /><span>Корзина</span><span className="cart-count" data-testid="text-cart-count">{count}</span>
         </button>
@@ -333,6 +356,20 @@ function ProductEditor({ product, onClose, onSave, busy }: { product: Product | 
 
 function AdminGate() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const [, navigate] = useLocation();
+  const [signingOut, setSigningOut] = useState(false);
+  const adminDisplayName = user?.fullName || user?.firstName || user?.primaryEmailAddress?.emailAddress || 'Администратор';
+  async function handleAdminSignOut() {
+    setSigningOut(true);
+    try {
+      await signOut({ redirectUrl: `${basePath}/` || '/' });
+      navigate('/');
+    } finally {
+      setSigningOut(false);
+    }
+  }
   const [tokenReady, setTokenReady] = useState(false);
   useEffect(() => {
     if (!isLoaded) return;
@@ -376,7 +413,10 @@ function AdminGate() {
     <p>После входа через Google панель откроется только для подтверждённого email из списка администратора. Если вы видите этот экран после входа, проверьте, что выбран правильный Google-аккаунт.</p>
     <Link className="cta" href="/sign-in" data-testid="link-admin-sign-in">Войти в аккаунт <ArrowRight size={15} /></Link>
     <button className="secondary-button" style={{ marginLeft: 8 }} onClick={() => { void overviewQuery.refetch(); void productsQuery.refetch(); }} data-testid="button-retry-admin">Проверить доступ</button>
-    <div style={{ marginTop: 17 }}><Link className="quiet-link" href="/" data-testid="link-return-store">Вернуться в магазин</Link></div>
+    <div className="gate-actions" style={{ marginTop: 17 }}>
+      <Link className="quiet-link" href="/" data-testid="link-return-store">Вернуться в магазин</Link>
+      {isSignedIn && <button className="account-logout" onClick={() => void handleAdminSignOut()} disabled={signingOut} data-testid="button-admin-gate-sign-out"><LogOut size={15} />{signingOut ? 'Выходим…' : 'Выйти из аккаунта'}</button>}
+    </div>
   </div></div>;
 
   return <div className="admin-layout">
@@ -391,7 +431,15 @@ function AdminGate() {
     <main className="admin-main"><div className="admin-content">
       <div className="admin-top">
         <div><div className="eyebrow">Тихо · администрирование</div><h1>{activeView === 'overview' ? 'Обзор магазина' : 'Каталог предметов'}</h1></div>
-        <button className="primary-button" onClick={() => setEditor(null)} data-testid="button-create-product"><Plus size={15} /> Новый предмет</button>
+        <div className="admin-top-actions">
+          <div className="admin-account" title={user?.primaryEmailAddress?.emailAddress || adminDisplayName}>
+            {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : <span className="admin-account-fallback"><UserRound size={15} /></span>}
+            <span><strong>{adminDisplayName}</strong><small>{user?.primaryEmailAddress?.emailAddress || 'Администратор'}</small></span>
+          </div>
+          <Link className="admin-store-switch" href="/" data-testid="button-switch-to-store"><ShoppingBag size={15} /> Обычный сайт</Link>
+          <button className="account-logout" onClick={() => void handleAdminSignOut()} disabled={signingOut} data-testid="button-admin-sign-out"><LogOut size={15} /><span>{signingOut ? 'Выходим…' : 'Выйти'}</span></button>
+          <button className="primary-button" onClick={() => setEditor(null)} data-testid="button-create-product"><Plus size={15} /> Новый предмет</button>
+        </div>
       </div>
       {notice && <p role="status" style={{ color: '#486d53', fontSize: 12 }} data-testid="status-admin-notice">{notice}<button className="plain-icon" onClick={() => setNotice('')} aria-label="Закрыть сообщение"><X size={13} /></button></p>}
       {activeView === 'overview' ? <>
