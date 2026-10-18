@@ -319,7 +319,7 @@ function StorefrontBlocks({ blocks }: { blocks: StorefrontBlock[] }) {
     const style: any = {
       background: block.background || 'transparent',
       color: block.color || 'inherit',
-      width: block.width || '100%',
+      width: columns < 12 && (!block.width || block.width === '100%') ? 'auto' : (block.width || '100%'),
       minHeight: block.height && block.height !== 'auto' ? block.height : undefined,
       fontSize: block.fontSize || undefined,
       padding: block.padding || '22px',
