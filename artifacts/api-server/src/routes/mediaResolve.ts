@@ -182,6 +182,23 @@ router.get("/media/resolve", async (req, res): Promise<void> => {
       });
       return;
     }
+    const sourceHost = source.hostname.toLowerCase();
+    const sourceProvider = sourceHost.includes("instagram") || sourceHost.includes("instagr.am") ? "instagram"
+      : sourceHost.includes("tiktok") ? "tiktok"
+      : sourceHost.includes("youtube") || sourceHost === "youtu.be" ? "youtube"
+      : sourceHost.includes("pinterest") || sourceHost === "pin.it" ? "pinterest" : "website";
+    // Run extractors before fetching HTML: Instagram may return 403 or empty metadata to server requests.
+    const earlyExtracted = await extractWithTools(source, sourceProvider);
+    if (earlyExtracted) {
+      const isImage = /\.(jpe?g|png|webp|gif)(?:$|[?#])/i.test(earlyExtracted.url);
+      res.json({
+        provider: sourceProvider, finalUrl: source.toString(), title: sourceProvider === "instagram" ? "Instagram media" : sourceProvider + " media",
+        mediaUrl: earlyExtracted.url, videoUrl: isImage ? null : earlyExtracted.url, imageUrl: isImage ? earlyExtracted.url : null,
+        mediaType: isImage ? "image" : "video", embedUrl: source.toString(), extractor: earlyExtracted.extractor,
+        note: "Прямая ссылка получена через серверный загрузчик; адрес CDN может иметь ограниченный срок действия."
+      });
+      return;
+    }
     let current = source;
     let response: Response | null = null;
     for (let hop = 0; hop < 6; hop++) {
@@ -206,18 +223,6 @@ router.get("/media/resolve", async (req, res): Promise<void> => {
       : current.hostname.includes("instagram") || current.hostname.includes("instagr.am") ? "instagram" : "website";
     if (!type.includes("text/html") && !type.includes("application/xhtml")) {
       res.json({ provider, finalUrl: current.toString(), title: current.hostname, mediaUrl: current.toString(), mediaType: type.split(";")[0], embedUrl: current.toString() });
-      return;
-    }
-    // Use real extractors for social platforms; OG tags are only a fallback.
-    const extracted = await extractWithTools(current, provider);
-    if (extracted) {
-      const isImage = /\.(jpe?g|png|webp|gif)(?:$|[?#])/i.test(extracted.url);
-      res.json({
-        provider, finalUrl: current.toString(), title: provider === "instagram" ? "Instagram media" : provider + " media",
-        mediaUrl: extracted.url, videoUrl: isImage ? null : extracted.url, imageUrl: isImage ? extracted.url : null,
-        mediaType: isImage ? "image" : "video", embedUrl: current.toString(), extractor: extracted.extractor,
-        note: "Прямая ссылка получена через серверный загрузчик; адрес CDN может иметь ограниченный срок действия."
-      });
       return;
     }
     const html = (await response.text()).slice(0, 2_000_000);
