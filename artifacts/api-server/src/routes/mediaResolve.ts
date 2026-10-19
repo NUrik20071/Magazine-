@@ -1,4 +1,9 @@
 import { Router, type IRouter } from "express";
+import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 const router: IRouter = Router();
 const allowedHosts = new Set([
@@ -6,6 +11,7 @@ const allowedHosts = new Set([
   "youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "www.youtu.be",
   "tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com",
   "2gis.kz", "www.2gis.kz", "2gis.com", "www.2gis.com", "eventup.kz", "www.eventup.kz",
+  "instagram.com", "www.instagram.com", "m.instagram.com", "instagr.am", "www.instagr.am",
 ]);
 const allowedMediaHosts = new Set([
   ...allowedHosts, "i.pinimg.com", "img.youtube.com", "ytimg.com", "www.ytimg.com",
@@ -70,6 +76,84 @@ function extractTikTokCdnUrl(html: string): string | null {
   return null;
 }
 
+type ExtractedMedia = { url: string; title?: string; ext?: string; mimeType?: string; extractor?: string };
+
+/**
+ * Run server-installed extractors instead of relying only on Open Graph tags.
+ * The URL passed here has already been checked against allowedHosts.
+ */
+async function runExtractor(moduleName: "yt_dlp" | "gallery_dl", args: string[], url: string): Promise<string | null> {
+  const configuredPython = process.env.MEDIA_TOOLS_PYTHON;
+  const localPython = process.cwd() + "/.venv-media/bin/python3";
+  const python = configuredPython || (existsSync(localPython) ? localPython : "python3");
+  try {
+    const { stdout } = await execFileAsync(python, ["-m", moduleName, ...args, url], {
+      timeout: 20_000,
+      maxBuffer: 2 * 1024 * 1024,
+      windowsHide: true,
+      env: { ...process.env, PYTHONUNBUFFERED: "1" },
+    });
+    const lines = stdout.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (moduleName === "yt_dlp") {
+      for (const line of lines.reverse()) {
+        try {
+          const data = JSON.parse(line) as Record<string, unknown>;
+          const requested = Array.isArray(data.requested_downloads) ? data.requested_downloads as Record<string, unknown>[] : [];
+          const requestedUrl = requested.find(item => typeof item.url === "string" && /^https:\/\//i.test(item.url as string))?.url;
+          const direct = typeof requestedUrl === "string" ? requestedUrl
+            : typeof data.url === "string" && /^https:\/\//i.test(data.url) ? data.url : null;
+          if (direct) return direct;
+          const formats = Array.isArray(data.formats) ? data.formats as Record<string, unknown>[] : [];
+          const format = formats.find(item => typeof item.url === "string" && /^https:\/\//i.test(item.url as string) && (item.vcodec !== "none" || item.acodec !== "none"));
+          if (format && typeof format.url === "string") return format.url;
+        } catch { /* ignore progress or warning lines */ }
+      }
+      return null;
+    }
+    // gallery-dl emits one or more JSON records for gallery items.
+    for (const line of lines) {
+      try {
+        const data = JSON.parse(line) as unknown;
+        const visit = (value: unknown): string | null => {
+          if (Array.isArray(value)) {
+            for (const item of value) { const found = visit(item); if (found) return found; }
+          } else if (value && typeof value === "object") {
+            const record = value as Record<string, unknown>;
+            for (const key of ["url", "content_url", "contentUrl", "download_url"]) {
+              const candidate = record[key];
+              if (typeof candidate === "string" && /^https:\/\//i.test(candidate) && /\.(jpe?g|png|webp|gif|mp4|mov|webm)(?:$|[?#])/i.test(candidate)) return candidate;
+            }
+            for (const item of Object.values(record)) { const found = visit(item); if (found) return found; }
+          }
+          return null;
+        };
+        const found = visit(data);
+        if (found) return found;
+      } catch { /* ignore non-JSON output */ }
+    }
+  } catch (error) {
+    // Extractors are best-effort: protected posts and unavailable tools fall back to metadata.
+    const detail = error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300);
+    console.warn(`[media-resolve] ${moduleName} failed: ${detail}`);
+  }
+  return null;
+}
+
+async function extractWithTools(url: URL, provider: string): Promise<ExtractedMedia | null> {
+  if (!["instagram", "tiktok", "youtube", "pinterest"].includes(provider)) return null;
+  // yt-dlp is usually best for video; gallery-dl is a useful fallback for Instagram carousels/photos.
+  const video = await runExtractor("yt_dlp", [
+    "--dump-single-json", "--no-warnings", "--no-playlist", "--skip-download",
+    "--socket-timeout", "8", "--retries", "1", "--extractor-retries", "1",
+  ], url.toString());
+  if (video) return { url: video, extractor: "yt-dlp" };
+  if (provider === "instagram" || provider === "pinterest") {
+    const gallery = await runExtractor("gallery_dl", ["--dump-json", "--no-mtime"], url.toString());
+    if (gallery) return { url: gallery, extractor: "gallery-dl" };
+  }
+  return null;
+}
+
 function youtubeId(url: URL): string {
   if (url.hostname === "youtu.be") return url.pathname.split("/").filter(Boolean)[0] || "";
   if (url.pathname === "/watch") return url.searchParams.get("v") || "";
@@ -118,9 +202,22 @@ router.get("/media/resolve", async (req, res): Promise<void> => {
       : current.hostname.includes("telegram") || current.hostname === "t.me" ? "telegram"
       : current.hostname.includes("pinterest") || current.hostname === "pin.it" ? "pinterest"
       : current.hostname.includes("youtube") || current.hostname === "youtu.be" ? "youtube"
-      : current.hostname.includes("2gis") ? "2gis" : "website";
+      : current.hostname.includes("2gis") ? "2gis"
+      : current.hostname.includes("instagram") || current.hostname.includes("instagr.am") ? "instagram" : "website";
     if (!type.includes("text/html") && !type.includes("application/xhtml")) {
       res.json({ provider, finalUrl: current.toString(), title: current.hostname, mediaUrl: current.toString(), mediaType: type.split(";")[0], embedUrl: current.toString() });
+      return;
+    }
+    // Use real extractors for social platforms; OG tags are only a fallback.
+    const extracted = await extractWithTools(current, provider);
+    if (extracted) {
+      const isImage = /\.(jpe?g|png|webp|gif)(?:$|[?#])/i.test(extracted.url);
+      res.json({
+        provider, finalUrl: current.toString(), title: provider === "instagram" ? "Instagram media" : provider + " media",
+        mediaUrl: extracted.url, videoUrl: isImage ? null : extracted.url, imageUrl: isImage ? extracted.url : null,
+        mediaType: isImage ? "image" : "video", embedUrl: current.toString(), extractor: extracted.extractor,
+        note: "Прямая ссылка получена через серверный загрузчик; адрес CDN может иметь ограниченный срок действия."
+      });
       return;
     }
     const html = (await response.text()).slice(0, 2_000_000);
@@ -139,7 +236,9 @@ router.get("/media/resolve", async (req, res): Promise<void> => {
     res.json({
       provider, finalUrl: current.toString(), title,
       imageUrl: image || null, videoUrl: video || null, mediaUrl: video || image || null, audioUrl: audio || null, embedUrl,
-      note: provider === "pinterest" && !image && !video
+      note: provider === "instagram" && !image && !video
+        ? "Instagram не предоставил медиа через загрузчики или метаданные. Публикация может требовать входа в аккаунт либо быть недоступна."
+        : provider === "pinterest" && !image && !video
         ? "Pinterest may require its own embed and may not expose media to external sites."
         : provider === "tiktok" && !video
           ? "TikTok page opened, but no direct CDN video URL was found in embedded page data or Open Graph metadata. The post may be unavailable or TikTok may have changed its page format."
