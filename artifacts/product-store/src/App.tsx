@@ -264,7 +264,16 @@ function CartDrawer({ items, onClose, onQty, onRemove, onOrderSubmitted }: {
 }
 
 
-type StorefrontBlock = { id: string; type: 'text' | 'image' | 'video' | 'audio' | 'button' | 'embed' | 'map' | 'carousel'; title?: string; text?: string; label?: string; url?: string; mediaUrl?: string; background?: string; color?: string; width?: string; columns?: number; height?: string; fontSize?: string; titleSize?: string; padding?: string; radius?: number; outline?: string; rotation?: number; animationDuration?: number; inlineStyle?: string; textAlign?: 'left' | 'center' | 'right'; objectFit?: 'cover' | 'contain'; targetBlank?: boolean; animation?: string };
+type StorefrontBlock = { id: string; type: 'text' | 'image' | 'video' | 'audio' | 'button' | 'embed' | 'map' | 'carousel'; title?: string; text?: string; label?: string; url?: string; mediaUrl?: string; mediaItems?: string; background?: string; color?: string; width?: string; columns?: number; height?: string; fontSize?: string; titleSize?: string; padding?: string; radius?: number; outline?: string; rotation?: number; animationDuration?: number; inlineStyle?: string; textAlign?: 'left' | 'center' | 'right'; objectFit?: 'cover' | 'contain'; targetBlank?: boolean; animation?: string };
+type ResolvedBlockMedia = { url: string; type: 'video' | 'image' | 'audio'; title?: string; mimeType?: string };
+function parseResolvedBlockMedia(raw?: string): ResolvedBlockMedia[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is ResolvedBlockMedia => !!item && typeof item.url === 'string' && /^https:\/\//i.test(item.url) && ['video', 'image', 'audio'].includes(item.type)).slice(0, 100);
+  } catch { return []; }
+}
 type CustomSection = { id: string; title: string; enabled: boolean; background: string; animation: string; blocks: StorefrontBlock[] };
 type WorkflowTrigger = 'page-load' | 'click' | 'swipe-left' | 'swipe-right';
 type WorkflowCondition = 'always' | 'mobile' | 'desktop' | 'cart-has-items' | 'url-contains';
@@ -359,8 +368,12 @@ function StorefrontBlocks({ blocks }: { blocks: StorefrontBlock[] }) {
       gridColumn: 'span ' + columns,
     };
     let content: ReactNode;
+    const resolvedMediaItems = parseResolvedBlockMedia(block.mediaItems);
     if (block.type === 'text') content = <div className="custom-block-copy"><h2 style={{ fontSize: block.titleSize && block.titleSize !== 'inherit' ? block.titleSize : undefined }}>{block.title}</h2><p>{block.text}</p></div>;
     else if (block.type === 'image') content = block.mediaUrl ? <img className="custom-block-media" style={{ objectFit: block.objectFit || 'contain', maxHeight: mediaHeight }} src={normalizeSourceUrl(block.mediaUrl)} alt={block.title || ''} /> : <div className="custom-block-placeholder">Выберите изображение из галереи или вставьте прямую ссылку.</div>;
+    else if (block.type === 'video' && resolvedMediaItems.length) content = resolvedMediaItems.length > 1 || resolvedMediaItems[0].type === 'image'
+      ? <div className="custom-carousel" aria-label={block.title || 'Извлечённая галерея'}>{resolvedMediaItems.map((item, itemIndex) => <figure className="custom-carousel-slide" key={item.url + itemIndex}>{item.type === 'video' ? <video className="custom-block-media" style={{ objectFit: block.objectFit || 'contain', maxHeight: mediaHeight }} src={item.url} controls playsInline preload="metadata" /> : item.type === 'audio' ? <audio src={item.url} controls /> : <img className="custom-block-media" style={{ objectFit: block.objectFit || 'contain', maxHeight: mediaHeight }} src={item.url} alt={(block.title || 'Фото') + ' ' + (itemIndex + 1)} loading="lazy" />}{resolvedMediaItems.length > 1 && <figcaption>{String(itemIndex + 1).padStart(2, '0') + ' / ' + String(resolvedMediaItems.length).padStart(2, '0')}</figcaption>}</figure>)}</div>
+      : <video className="custom-block-media" style={{ objectFit: block.objectFit || 'contain', maxHeight: mediaHeight }} src={resolvedMediaItems[0].url} controls playsInline preload="metadata" />;
     else if (block.type === 'video' && (youtubeVideoId(block.mediaUrl || '') || /^(?:https?:\/\/)?(?:www\.)?(?:t\.me|telegram\.me)\//i.test((block.mediaUrl || '').trim()))) content = <iframe className="custom-block-embed" src={mediaEmbedUrl(block.mediaUrl || '', 'embed')} title={block.title || 'Видео'} loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen />;
     else if (block.type === 'video' && isPinterestSource(block.mediaUrl || '')) content = <PinterestEmbed url={block.mediaUrl || ''} title={block.title || 'Pinterest'} />;
     else if (block.type === 'video') content = block.mediaUrl ? <video className="custom-block-media" style={{ objectFit: block.objectFit || 'contain', maxHeight: mediaHeight }} src={normalizeSourceUrl(block.mediaUrl)} controls playsInline /> : <div className="custom-block-placeholder">Загрузите видео или вставьте ссылку на MP4/WebM, YouTube или публичный пост Telegram.</div>;
@@ -689,11 +702,16 @@ function StorefrontSettingsEditor() {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'Не удалось получить источник');
       const block = config.blocks[index];
-      const resolved = block.type === 'image' ? (body.imageUrl || body.mediaUrl || body.finalUrl)
-        : block.type === 'video' ? (['youtube', 'telegram', 'pinterest'].includes(body.provider) ? body.embedUrl : (body.videoUrl || body.mediaUrl || body.finalUrl))
+      const resolvedItems = Array.isArray(body.mediaItems) ? body.mediaItems.filter((item: any) => item && typeof item.url === 'string' && ['video', 'image', 'audio'].includes(item.type)) : [];
+      const firstVideo = resolvedItems.find((item: any) => item.type === 'video');
+      const firstImage = resolvedItems.find((item: any) => item.type === 'image');
+      const resolved = block.type === 'image' ? (body.imageUrl || firstImage?.url || body.mediaUrl || body.finalUrl)
+        : block.type === 'video' ? (['youtube', 'telegram', 'pinterest'].includes(body.provider) ? body.embedUrl : (firstVideo?.url || firstImage?.url || body.videoUrl || body.mediaUrl || body.finalUrl))
         : block.type === 'audio' ? (body.audioUrl || body.mediaUrl || body.finalUrl)
         : block.type === 'map' ? body.finalUrl : (body.embedUrl || body.finalUrl);
       if (resolved) updateBlock(index, 'mediaUrl', resolved);
+      if (block.type === 'video' && resolvedItems.length) updateBlock(index, 'mediaItems', JSON.stringify(resolvedItems));
+      else if (block.type === 'video') updateBlock(index, 'mediaItems', '');
       if (body.title && !block.title) updateBlock(index, 'title', body.title);
       setSourceNotice(body.note || ('Источник распознан: ' + body.provider + '. Проверьте предпросмотр и сохраните страницу.'));
     } catch (error) { setError(error instanceof Error ? error.message : 'Не удалось извлечь источник'); }
