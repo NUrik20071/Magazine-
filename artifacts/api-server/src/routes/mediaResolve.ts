@@ -188,7 +188,7 @@ function parseYtDlp(value: unknown): { items: MediaItem[]; title?: string } {
     const requested = Array.isArray(d.requested_downloads) ? d.requested_downloads as Record<string, unknown>[] : [];
     const usableFormats = formats.filter(x => typeof x.url === "string" && (x.vcodec !== "none" || x.acodec !== "none"));
     const bestFormat = usableFormats.length ? [usableFormats[usableFormats.length - 1]] : [];
-    const candidates = [...requested, ...(typeof d.url === "string" ? [d] : []), ...bestFormat];
+    const candidates = requested.length ? requested : (typeof d.url === "string" ? [d] : bestFormat);
     for (const c of candidates) {
       const item = makeMediaItem(c.url, c.mime_type || d.mime_type, d.title);
       if (item) items.push(item);
