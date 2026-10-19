@@ -154,6 +154,118 @@ async function extractWithTools(url: URL, provider: string): Promise<ExtractedMe
   return null;
 }
 
+type MediaItem = { url: string; type: "video" | "image" | "audio"; mimeType?: string; title?: string };
+type MultiExtract = { items: MediaItem[]; title?: string; extractor: string };
+
+function classifyMedia(url: string, mime = ""): MediaItem["type"] {
+  const v = (url + " " + mime).toLowerCase();
+  if (/audio|\.mp3(?:$|[?#])|\.m4a(?:$|[?#])|\.aac(?:$|[?#])/.test(v)) return "audio";
+  if (/image|\.jpe?g(?:$|[?#])|\.png(?:$|[?#])|\.webp(?:$|[?#])|\.gif(?:$|[?#])|\.avif(?:$|[?#])/.test(v)) return "image";
+  return "video";
+}
+function makeMediaItem(url: unknown, mime?: unknown, title?: unknown): MediaItem | null {
+  if (typeof url !== "string" || !/^https:\/\//i.test(url)) return null;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" || u.username || u.password) return null;
+    return { url: u.toString(), type: classifyMedia(url, typeof mime === "string" ? mime : ""),
+      ...(typeof mime === "string" && mime ? { mimeType: mime } : {}),
+      ...(typeof title === "string" && title ? { title: title.slice(0, 300) } : {}) };
+  } catch { return null; }
+}
+function uniqueMedia(items: MediaItem[]): MediaItem[] {
+  const seen = new Set<string>();
+  return items.filter(x => !seen.has(x.url) && !!seen.add(x.url)).slice(0, 100);
+}
+function parseYtDlp(value: unknown): { items: MediaItem[]; title?: string } {
+  const items: MediaItem[] = [];
+  let title: string | undefined;
+  const visit = (v: unknown) => {
+    if (!v || typeof v !== "object" || Array.isArray(v)) return;
+    const d = v as Record<string, unknown>;
+    if (!title && typeof d.title === "string") title = d.title;
+    const formats = Array.isArray(d.formats) ? d.formats as Record<string, unknown>[] : [];
+    const requested = Array.isArray(d.requested_downloads) ? d.requested_downloads as Record<string, unknown>[] : [];
+    const candidates = [...requested, ...(typeof d.url === "string" ? [d] : []),
+      ...formats.filter(x => typeof x.url === "string" && (x.vcodec !== "none" || x.acodec !== "none"))];
+    for (const c of candidates) {
+      const item = makeMediaItem(c.url, c.mime_type || d.mime_type, d.title);
+      if (item) items.push(item);
+    }
+    if (Array.isArray(d.entries)) for (const e of d.entries) visit(e);
+    if (!items.length && Array.isArray(d.thumbnails)) for (const t of d.thumbnails) {
+      if (t && typeof t === "object") {
+        const item = makeMediaItem((t as Record<string, unknown>).url, "image", d.title);
+        if (item) items.push(item);
+      }
+    }
+  };
+  visit(value);
+  return { items: uniqueMedia(items), title };
+}
+function parseGalleryJson(value: unknown, items: MediaItem[], title?: string): void {
+  if (typeof value === "string") {
+    if (/^https:\/\//i.test(value) && /\.(?:jpe?g|png|webp|gif|avif|mp4|mov|webm|m3u8|mpd|mp3|m4a)(?:$|[?#])/i.test(value)) {
+      const item = makeMediaItem(value, undefined, title); if (item) items.push(item);
+    }
+    return;
+  }
+  if (Array.isArray(value)) { for (const child of value) parseGalleryJson(child, items, title); return; }
+  if (value && typeof value === "object") {
+    const d = value as Record<string, unknown>;
+    const t = typeof d.title === "string" ? d.title : title;
+    for (const [key, child] of Object.entries(d)) {
+      if (["url", "content_url", "contentUrl", "download_url", "src"].includes(key) && typeof child === "string") {
+        const item = makeMediaItem(child, key.toLowerCase().includes("image") ? "image" : undefined, t);
+        if (item) items.push(item);
+      } else parseGalleryJson(child, items, t);
+    }
+  }
+}
+async function runMultiExtractor(moduleName: "yt_dlp" | "gallery_dl", args: string[], url: string): Promise<MultiExtract | null> {
+  const python = process.env.MEDIA_TOOLS_PYTHON || (existsSync(process.cwd() + "/.venv-media/bin/python3") ? process.cwd() + "/.venv-media/bin/python3" : "python3");
+  try {
+    const { stdout } = await execFileAsync(python, ["-m", moduleName, ...args, url], {
+      timeout: 30000, maxBuffer: 4 * 1024 * 1024, windowsHide: true,
+      env: { ...process.env, PYTHONUNBUFFERED: "1" },
+    });
+    const lines = stdout.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    if (moduleName === "yt_dlp") {
+      for (const line of [...lines].reverse()) {
+        try {
+          const parsed = parseYtDlp(JSON.parse(line));
+          if (parsed.items.length) return { ...parsed, extractor: "yt-dlp" };
+        } catch { /* ignore progress output */ }
+      }
+      return null;
+    }
+    const items: MediaItem[] = [];
+    for (const line of lines) {
+      try { parseGalleryJson(JSON.parse(line), items); }
+      catch { parseGalleryJson(line, items); }
+    }
+    const deduped = uniqueMedia(items);
+    return deduped.length ? { items: deduped, extractor: "gallery-dl" } : null;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message.slice(0, 240) : String(error).slice(0, 240);
+    console.warn("[media-resolve] " + moduleName + " failed: " + detail);
+    return null;
+  }
+}
+async function extractAllMedia(url: URL, provider: string): Promise<MultiExtract | null> {
+  if (!["instagram", "tiktok", "youtube", "pinterest", "telegram", "2gis"].includes(provider)) return null;
+  const video = await runMultiExtractor("yt_dlp", [
+    "--dump-single-json", "--no-warnings", "--no-playlist", "--skip-download",
+    "--socket-timeout", "8", "--retries", "1", "--extractor-retries", "1",
+  ], url.toString());
+  if (video?.items.length) return video;
+  if (["instagram", "pinterest", "tiktok", "telegram"].includes(provider)) {
+    const gallery = await runMultiExtractor("gallery_dl", ["--dump-json", "--no-mtime"], url.toString());
+    if (gallery?.items.length) return gallery;
+  }
+  return null;
+}
+
 function youtubeId(url: URL): string {
   if (url.hostname === "youtu.be") return url.pathname.split("/").filter(Boolean)[0] || "";
   if (url.pathname === "/watch") return url.searchParams.get("v") || "";
@@ -188,14 +300,21 @@ router.get("/media/resolve", async (req, res): Promise<void> => {
       : sourceHost.includes("youtube") || sourceHost === "youtu.be" ? "youtube"
       : sourceHost.includes("pinterest") || sourceHost === "pin.it" ? "pinterest" : "website";
     // Run extractors before fetching HTML: Instagram may return 403 or empty metadata to server requests.
-    const earlyExtracted = await extractWithTools(source, sourceProvider);
-    if (earlyExtracted) {
-      const isImage = /\.(jpe?g|png|webp|gif)(?:$|[?#])/i.test(earlyExtracted.url);
+    const earlyExtracted = await extractAllMedia(source, sourceProvider);
+    if (earlyExtracted?.items.length) {
+      const items = earlyExtracted.items;
+      const firstVideo = items.find(item => item.type === "video");
+      const firstImage = items.find(item => item.type === "image");
+      const firstAudio = items.find(item => item.type === "audio");
+      const imageCount = items.filter(item => item.type === "image").length;
       res.json({
-        provider: sourceProvider, finalUrl: source.toString(), title: sourceProvider === "instagram" ? "Instagram media" : sourceProvider + " media",
-        mediaUrl: earlyExtracted.url, videoUrl: isImage ? null : earlyExtracted.url, imageUrl: isImage ? earlyExtracted.url : null,
-        mediaType: isImage ? "image" : "video", embedUrl: source.toString(), extractor: earlyExtracted.extractor,
-        note: "Прямая ссылка получена через серверный загрузчик; адрес CDN может иметь ограниченный срок действия."
+        provider: sourceProvider, finalUrl: source.toString(),
+        title: earlyExtracted.title || (sourceProvider + " media"),
+        mediaUrl: firstVideo?.url || firstImage?.url || firstAudio?.url || items[0].url,
+        videoUrl: firstVideo?.url || null, imageUrl: firstImage?.url || null, audioUrl: firstAudio?.url || null,
+        mediaItems: items, mediaType: imageCount > 1 ? "photo_gallery" : items[0].type,
+        embedUrl: source.toString(), extractor: earlyExtracted.extractor,
+        note: "Медиа извлечено серверным загрузчиком; временные CDN-ссылки могут истекать."
       });
       return;
     }
@@ -238,9 +357,13 @@ router.get("/media/resolve", async (req, res): Promise<void> => {
       const embed = new URL(current.toString()); embed.searchParams.set("embed", "1"); embed.searchParams.set("mode", "tme"); embedUrl = embed.toString();
     }
     else if (provider === "pinterest" || provider === "tiktok") embedUrl = current.toString();
+    const fallbackItems: MediaItem[] = [];
+    if (video) { const item = makeMediaItem(video, "video", title); if (item) fallbackItems.push(item); }
+    if (image) { const item = makeMediaItem(image, "image", title); if (item) fallbackItems.push(item); }
     res.json({
       provider, finalUrl: current.toString(), title,
-      imageUrl: image || null, videoUrl: video || null, mediaUrl: video || image || null, audioUrl: audio || null, embedUrl,
+      imageUrl: image || null, videoUrl: video || null, mediaUrl: video || image || null, audioUrl: audio || null,
+      mediaItems: uniqueMedia(fallbackItems), mediaType: video ? "video" : image ? "image" : null, embedUrl,
       note: provider === "instagram" && !image && !video
         ? "Instagram не предоставил медиа через загрузчики или метаданные. Публикация может требовать входа в аккаунт либо быть недоступна."
         : provider === "pinterest" && !image && !video
