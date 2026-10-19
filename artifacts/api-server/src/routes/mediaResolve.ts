@@ -143,7 +143,7 @@ async function extractWithTools(url: URL, provider: string): Promise<ExtractedMe
   if (!["instagram", "tiktok", "youtube", "pinterest"].includes(provider)) return null;
   // yt-dlp is usually best for video; gallery-dl is a useful fallback for Instagram carousels/photos.
   const video = await runExtractor("yt_dlp", [
-    "--dump-single-json", "--no-warnings", "--no-playlist", "--skip-download",
+    "--dump-single-json", "--no-warnings", "--skip-download",
     "--socket-timeout", "8", "--retries", "1", "--extractor-retries", "1",
   ], url.toString());
   if (video) return { url: video, extractor: "yt-dlp" };
@@ -186,8 +186,9 @@ function parseYtDlp(value: unknown): { items: MediaItem[]; title?: string } {
     if (!title && typeof d.title === "string") title = d.title;
     const formats = Array.isArray(d.formats) ? d.formats as Record<string, unknown>[] : [];
     const requested = Array.isArray(d.requested_downloads) ? d.requested_downloads as Record<string, unknown>[] : [];
-    const candidates = [...requested, ...(typeof d.url === "string" ? [d] : []),
-      ...formats.filter(x => typeof x.url === "string" && (x.vcodec !== "none" || x.acodec !== "none"))];
+    const usableFormats = formats.filter(x => typeof x.url === "string" && (x.vcodec !== "none" || x.acodec !== "none"));
+    const bestFormat = usableFormats.length ? [usableFormats[usableFormats.length - 1]] : [];
+    const candidates = [...requested, ...(typeof d.url === "string" ? [d] : []), ...bestFormat];
     for (const c of candidates) {
       const item = makeMediaItem(c.url, c.mime_type || d.mime_type, d.title);
       if (item) items.push(item);
