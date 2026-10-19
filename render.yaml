@@ -4,6 +4,8 @@ services:
     runtime: node
     plan: free
     buildCommand: >-
+      python3 -m venv .venv-media &&
+      .venv-media/bin/pip install --disable-pip-version-check --no-cache-dir yt-dlp gallery-dl &&
       corepack enable &&
       pnpm install --frozen-lockfile &&
       pnpm --filter @workspace/product-store run build &&
@@ -13,6 +15,8 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 24.14.0
+      - key: MEDIA_TOOLS_PYTHON
+        value: /opt/render/project/src/.venv-media/bin/python3
       - key: NODE_ENV
         value: production
       - key: PORT
