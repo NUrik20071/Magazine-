@@ -39,7 +39,36 @@ function meta(html: string, key: string): string {
   }
   return "";
 }
-function youtubeId(url: URL): string {
+
+function extractTikTokCdnUrl(html: string): string | null {
+  // TikTok embeds the playback address in serialized page data under playAddr/downloadAddr.
+  // Decode escaped JSON strings, but only return known TikTok/ByteDance media CDN hosts.
+  const patterns = [
+    /["']playAddr["']\\s*:\\s*["']((?:\\\\.|[^"'\\\\])*)["']/gi,
+    /["']downloadAddr["']\\s*:\\s*["']((?:\\\\.|[^"'\\\\])*)["']/gi,
+    /["']contentUrl["']\\s*:\\s*["']((?:\\\\.|[^"'\\\\])*)["']/gi,
+  ];
+  for (const pattern of patterns) {
+    for (const match of html.matchAll(pattern)) {
+      let raw = match[1];
+      try { raw = JSON.parse("\\"" + raw + "\\""); } catch {
+        raw = raw.replace(/\\\\u002F/gi, "/").replace(/\\\\u0026/gi, "&").replace(/\\\\\\//g, "/");
+      }
+      raw = raw.replace(/&amp;/g, "&").replace(/\\u0026/gi, "&");
+      try {
+        const candidate = new URL(raw);
+        const host = candidate.hostname.toLowerCase();
+        const trustedCdn = host.includes("tiktokcdn") || host.includes("tiktokv") ||
+          host.includes("byteoversea") || host.includes("muscdn") || host.includes("ibytedtos");
+        if (candidate.protocol === "https:" && trustedCdn && /\\.(mp4|m3u8|mpd)(?:$|\\?)/i.test(candidate.pathname + candidate.search)) {
+          return candidate.toString();
+        }
+      } catch { /* continue searching other serialized addresses */ }
+    }
+  }
+  return null;
+}
+\nfunction youtubeId(url: URL): string {
   if (url.hostname === "youtu.be") return url.pathname.split("/").filter(Boolean)[0] || "";
   if (url.pathname === "/watch") return url.searchParams.get("v") || "";
   const parts = url.pathname.split("/").filter(Boolean);
