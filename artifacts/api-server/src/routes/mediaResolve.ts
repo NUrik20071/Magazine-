@@ -126,7 +126,8 @@ router.get("/media/resolve", async (req, res): Promise<void> => {
     const html = (await response.text()).slice(0, 2_000_000);
     const title = meta(html, "og:title") || html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.replace(/\s+/g, " ").trim() || current.hostname;
     const image = meta(html, "og:image:secure_url") || meta(html, "og:image");
-    const video = meta(html, "og:video:secure_url") || meta(html, "og:video") || meta(html, "og:video:url");
+    const ogVideo = meta(html, "og:video:secure_url") || meta(html, "og:video") || meta(html, "og:video:url");
+    const video = provider === "tiktok" ? (extractTikTokCdnUrl(html) || ogVideo) : ogVideo;
     const audio = meta(html, "og:audio:secure_url") || meta(html, "og:audio");
     let embedUrl = current.toString();
     const ytId = youtubeId(current);
@@ -137,11 +138,11 @@ router.get("/media/resolve", async (req, res): Promise<void> => {
     else if (provider === "pinterest" || provider === "tiktok") embedUrl = current.toString();
     res.json({
       provider, finalUrl: current.toString(), title,
-      imageUrl: image || null, videoUrl: video || null, audioUrl: audio || null, embedUrl,
+      imageUrl: image || null, videoUrl: video || null, mediaUrl: video || image || null, audioUrl: audio || null, embedUrl,
       note: provider === "pinterest" && !image && !video
         ? "Pinterest may require its own embed and may not expose media to external sites."
         : provider === "tiktok" && !video
-          ? "TikTok page opened, but no direct video URL was exposed in page metadata. Public post extraction may require a platform-specific resolver."
+          ? "TikTok page opened, but no direct CDN video URL was found in embedded page data or Open Graph metadata. The post may be unavailable or TikTok may have changed its page format."
           : undefined
     });
   } catch (error) {
