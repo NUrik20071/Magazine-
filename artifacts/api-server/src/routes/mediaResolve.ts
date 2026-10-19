@@ -4,16 +4,20 @@ const router: IRouter = Router();
 const allowedHosts = new Set([
   "t.me", "telegram.me", "pin.it", "pinterest.com", "www.pinterest.com",
   "youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "www.youtu.be",
+  "tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com",
   "2gis.kz", "www.2gis.kz", "2gis.com", "www.2gis.com", "eventup.kz", "www.eventup.kz",
 ]);
 const allowedMediaHosts = new Set([
   ...allowedHosts, "i.pinimg.com", "img.youtube.com", "ytimg.com", "www.ytimg.com",
   "telegram.org", "cdn4.telegram-cdn.org",
+  "tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com",
+  "tiktokcdn-eu.com",
 ]);
 function hostAllowed(host: string, media = false) {
   const h = host.toLowerCase().replace(/\.$/, "");
   const set = media ? allowedMediaHosts : allowedHosts;
-  return set.has(h) || (media && (h.endsWith(".pinimg.com") || h.endsWith(".youtube.com") || h.endsWith(".ytimg.com")));
+  const tiktokCdn = h === "tiktokcdn-eu.com" || h.endsWith(".tiktokcdn-eu.com");
+  return set.has(h) || tiktokCdn || (media && (h.endsWith(".pinimg.com") || h.endsWith(".youtube.com") || h.endsWith(".ytimg.com")));
 }
 function safeUrl(value: unknown): URL | null {
   if (typeof value !== "string" || value.length > 2000) return null;
@@ -43,8 +47,26 @@ function youtubeId(url: URL): string {
 }
 router.get("/media/resolve", async (req, res): Promise<void> => {
   const source = safeUrl(req.query.url);
-  if (!source) { res.status(400).json({ error: "Поддерживаются публичные ссылки Telegram, Pinterest, YouTube и 2ГИС." }); return; }
+  if (!source) { res.status(400).json({ error: "Поддерживаются публичные ссылки TikTok, Telegram, Pinterest, YouTube и 2ГИС, а также прямые ссылки на медиа TikTok CDN." }); return; }
   try {
+    // A direct TikTok CDN URL is already the media resource; do not fetch the whole video
+    // just to identify it, because CDN links can be large and their query signatures are time-limited.
+    if (source.hostname.toLowerCase().endsWith(".tiktokcdn-eu.com") || source.hostname.toLowerCase() === "tiktokcdn-eu.com") {
+      const mime = source.searchParams.get("mime_type") || (source.pathname.includes("/video/") ? "video/mp4" : "application/octet-stream");
+      const isVideo = mime.toLowerCase().includes("video") || source.pathname.includes("/video/");
+      res.json({
+        provider: "tiktok",
+        finalUrl: source.toString(),
+        title: isVideo ? "TikTok video" : "TikTok media",
+        mediaUrl: source.toString(),
+        videoUrl: isVideo ? source.toString() : null,
+        imageUrl: isVideo ? null : source.toString(),
+        mediaType: mime,
+        embedUrl: source.toString(),
+        note: "Прямая CDN-ссылка распознана. Срок её действия контролируется TikTok; при истечении получите свежую ссылку из публикации."
+      });
+      return;
+    }
     let current = source;
     let response: Response | null = null;
     for (let hop = 0; hop < 6; hop++) {
@@ -61,7 +83,8 @@ router.get("/media/resolve", async (req, res): Promise<void> => {
     }
     if (!response?.ok) { res.status(502).json({ error: "Источник не открылся. Возможно, публикация закрыта или удалена." }); return; }
     const type = response.headers.get("content-type") || "";
-    const provider = current.hostname.includes("telegram") || current.hostname === "t.me" ? "telegram"
+    const provider = current.hostname.includes("tiktok") ? "tiktok"
+      : current.hostname.includes("telegram") || current.hostname === "t.me" ? "telegram"
       : current.hostname.includes("pinterest") || current.hostname === "pin.it" ? "pinterest"
       : current.hostname.includes("youtube") || current.hostname === "youtu.be" ? "youtube"
       : current.hostname.includes("2gis") ? "2gis" : "website";
@@ -80,8 +103,16 @@ router.get("/media/resolve", async (req, res): Promise<void> => {
     else if (provider === "telegram" && current.pathname.split("/").filter(Boolean).length >= 2) {
       const embed = new URL(current.toString()); embed.searchParams.set("embed", "1"); embed.searchParams.set("mode", "tme"); embedUrl = embed.toString();
     }
-    else if (provider === "pinterest") embedUrl = current.toString();
-    res.json({ provider, finalUrl: current.toString(), title, imageUrl: image || null, videoUrl: video || null, audioUrl: audio || null, embedUrl, note: provider === "pinterest" && !image && !video ? "Pinterest may require its own embed and may not expose media to external sites." : undefined });
+    else if (provider === "pinterest" || provider === "tiktok") embedUrl = current.toString();
+    res.json({
+      provider, finalUrl: current.toString(), title,
+      imageUrl: image || null, videoUrl: video || null, audioUrl: audio || null, embedUrl,
+      note: provider === "pinterest" && !image && !video
+        ? "Pinterest may require its own embed and may not expose media to external sites."
+        : provider === "tiktok" && !video
+          ? "TikTok page opened, but no direct video URL was exposed in page metadata. Public post extraction may require a platform-specific resolver."
+          : undefined
+    });
   } catch (error) {
     req.log.warn({ err: error }, "Media source resolution failed");
     res.status(502).json({ error: "Не удалось получить предпросмотр. Проверьте ссылку или используйте прямой URL/код встраивания." });
