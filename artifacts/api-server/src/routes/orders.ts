@@ -72,7 +72,7 @@ router.post("/orders", async (req, res): Promise<void> => {
       return;
     }
 
-    const { userId } = getAuth(req);
+    const userId = process.env.CLERK_SECRET_KEY?.trim() ? getAuth(req).userId : null;
     const inserted = await pool.query(
       `INSERT INTO store_orders
        (customer_name, customer_phone, customer_email, delivery_address, customer_note, items, total_amount, user_id)
