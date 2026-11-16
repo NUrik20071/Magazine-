@@ -1,4 +1,3 @@
-
 import express, { type Express } from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,6 +35,11 @@ app.use(
   }),
 );
 
+// Keep the platform health check independent from optional authentication.
+app.get("/api/healthz", (_req, res) => {
+  res.json({ status: "ok" });
+});
+
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 const allowedCorsOrigins = new Set(
   (process.env.CORS_ORIGINS ?? "")
@@ -55,14 +59,20 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(
-  clerkMiddleware((req) => ({
-    publishableKey: publishableKeyFromHost(
-      getClerkProxyHost(req) ?? "",
-      process.env.CLERK_PUBLISHABLE_KEY,
-    ),
-  })),
-);
+if (process.env.CLERK_SECRET_KEY?.trim()) {
+  app.use(
+    clerkMiddleware((req) => ({
+      publishableKey: publishableKeyFromHost(
+        getClerkProxyHost(req) ?? "",
+        process.env.CLERK_PUBLISHABLE_KEY,
+      ),
+    })),
+  );
+} else {
+  logger.warn(
+    "CLERK_SECRET_KEY is not configured; public storefront routes remain available and admin routes are disabled.",
+  );
+}
 
 app.use("/api", router);
 
