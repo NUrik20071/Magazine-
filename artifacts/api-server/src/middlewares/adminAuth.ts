@@ -9,6 +9,11 @@ const adminEmails = new Set(
 );
 
 export const requireAdmin: RequestHandler = async (req, res, next) => {
+  if (!process.env.CLERK_SECRET_KEY?.trim()) {
+    res.status(503).json({ error: "Administrator authentication is not configured." });
+    return;
+  }
+
   const { userId } = getAuth(req);
   if (!userId) {
     res.status(401).json({ error: "Authentication required." });
