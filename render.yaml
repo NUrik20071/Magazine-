@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: maghazin-tovarov
+    name: maghazin-tovarov-2vhe
     runtime: node
     plan: free
     buildCommand: >-
