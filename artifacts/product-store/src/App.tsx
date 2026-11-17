@@ -39,7 +39,7 @@ function useStoreUser() { return { user: useContext(StoreAuthContext).user }; }
 function useStoreClerk() { const auth = useContext(StoreAuthContext); return { signOut: auth.signOut }; }
 function ClerkBridge({ children }: { children: ReactNode }) {
   const auth = useAuth();
-  const { user } = useStoreUser();
+  const { user } = useUser();
   const clerk = useClerk();
   const value: StoreAuthState = { isLoaded: auth.isLoaded, isSignedIn: auth.isSignedIn === true, getToken: auth.getToken, user, signOut: clerk.signOut };
   return <StoreAuthContext.Provider value={value}>{children}</StoreAuthContext.Provider>;
