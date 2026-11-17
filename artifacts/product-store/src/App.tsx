@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type MouseEvent, type TouchEvent } from 'react';
+import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type MouseEvent, type TouchEvent } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from '@clerk/react';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
@@ -32,7 +32,18 @@ const queryClient = new QueryClient();
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.trim();
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
-if (!clerkPubKey) throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env file');
+type StoreAuthState = { isLoaded: boolean; isSignedIn: boolean; getToken: () => Promise<string | null>; user: any; signOut: (options?: any) => Promise<void> };
+const StoreAuthContext = createContext<StoreAuthState>({ isLoaded: true, isSignedIn: false, getToken: async () => null, user: null, signOut: async () => undefined });
+function useStoreAuth() { const auth = useContext(StoreAuthContext); return { isLoaded: auth.isLoaded, isSignedIn: auth.isSignedIn, getToken: auth.getToken }; }
+function useStoreUser() { return { user: useContext(StoreAuthContext).user }; }
+function useStoreClerk() { const auth = useContext(StoreAuthContext); return { signOut: auth.signOut }; }
+function ClerkBridge({ children }: { children: ReactNode }) {
+  const auth = useAuth();
+  const { user } = useStoreUser();
+  const clerk = useClerk();
+  const value: StoreAuthState = { isLoaded: auth.isLoaded, isSignedIn: auth.isSignedIn === true, getToken: auth.getToken, user, signOut: clerk.signOut };
+  return <StoreAuthContext.Provider value={value}>{children}</StoreAuthContext.Provider>;
+}
 
 function stripBase(path: string) {
   return basePath && path.startsWith(basePath) ? path.slice(basePath.length) || '/' : path;
@@ -125,7 +136,7 @@ const productImage = (product: Product, index: number) =>
 const money = (value: number) => `${new Intl.NumberFormat('ru-RU').format(value)} ₸`;
 
 function AdminHeaderLink() {
-  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { isLoaded, isSignedIn, getToken } = useStoreAuth();
   const [tokenReady, setTokenReady] = useState(false);
   useEffect(() => {
     if (!isLoaded) return;
@@ -146,9 +157,9 @@ function AdminHeaderLink() {
 }
 
 function ShopHeader({ count, onCart, announcement, content }: { count: number; onCart: () => void; announcement: string; content: StorefrontConfig['content'] }) {
-  const { isLoaded, isSignedIn } = useAuth();
-  const { user } = useUser();
-  const { signOut } = useClerk();
+  const { isLoaded, isSignedIn } = useStoreAuth();
+  const { user } = useStoreUser();
+  const { signOut } = useStoreClerk();
   const [signingOut, setSigningOut] = useState(false);
   const displayName = user?.fullName || user?.firstName || user?.primaryEmailAddress?.emailAddress || 'Мой аккаунт';
 
@@ -672,7 +683,7 @@ function AiBuilderAssistant({ config, onApply, getToken, setNotice, setError }: 
 }
 
 function StorefrontSettingsEditor() {
-  const { getToken } = useAuth();
+  const { getToken } = useStoreAuth();
   const [config, setConfig] = useState<StorefrontConfig>(defaultStorefront);
   const [resolvingBlock, setResolvingBlock] = useState<number | null>(null);
   const [sourceNotice, setSourceNotice] = useState('');
@@ -879,9 +890,9 @@ function StorefrontSettingsEditor() {
 }
 
 function AdminGate() {
-  const { isLoaded, isSignedIn, getToken } = useAuth();
-  const { user } = useUser();
-  const { signOut } = useClerk();
+  const { isLoaded, isSignedIn, getToken } = useStoreAuth();
+  const { user } = useStoreUser();
+  const { signOut } = useStoreClerk();
   const [, navigate] = useLocation();
   const [signingOut, setSigningOut] = useState(false);
   const adminDisplayName = user?.fullName || user?.firstName || user?.primaryEmailAddress?.emailAddress || 'Администратор';
@@ -1089,11 +1100,11 @@ function ProductTable({ products, onEdit, onDelete }: { products: Product[]; onE
 
 function BrandedSignIn() {
   return <div className="auth-page"><aside className="auth-side"><Link href="/" className="brand" style={{ color: '#f7f2e8' }}>тихо.<small>дом и повседневность</small></Link><div><span className="eyebrow" style={{ color: '#d6a08d' }}>Ваше тихое место</span><h1>Рады, что вы вернулись.</h1><p>Войдите, чтобы продолжить управлять коллекцией и сохранить свои любимые находки.</p></div><span className="mono" style={{ fontSize: 9, letterSpacing: '.12em' }}>АЛМАТЫ · КАЗАХСТАН</span></aside>
-    <div className="auth-form-area"><div className="clerk-auth-card"><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} forceRedirectUrl={`${basePath}/`} fallback={<div role="status" style={{ padding: 24, color: "#244c43", textAlign: "center" }}>Загрузка формы входа…</div>} /></div></div></div>;
+    <div className="auth-form-area"><div className="clerk-auth-card">{!clerkPubKey ? <p>Вход временно недоступен: авторизация не настроена.</p> : <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} forceRedirectUrl={`${basePath}/`} fallback={<div role="status" style={{ padding: 24, color: "#244c43", textAlign: "center" }}>Загрузка формы входа…</div>} />}</div></div></div>;
 }
 function BrandedSignUp() {
   return <div className="auth-page"><aside className="auth-side"><Link href="/" className="brand" style={{ color: '#f7f2e8' }}>тихо.<small>дом и повседневность</small></Link><div><span className="eyebrow" style={{ color: '#d6a08d' }}>В хорошей компании</span><h1>Меньше шума. Больше любимых вещей.</h1><p>Создайте аккаунт для нашей небольшой команды и бережно собирайте каталог.</p></div><span className="mono" style={{ fontSize: 9, letterSpacing: '.12em' }}>АЛМАТЫ · КАЗАХСТАН</span></aside>
-    <div className="auth-form-area"><div className="clerk-auth-card"><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} forceRedirectUrl={`${basePath}/`} fallback={<div role="status" style={{ padding: 24, color: "#244c43", textAlign: "center" }}>Загрузка формы регистрации…</div>} /></div></div></div>;
+    <div className="auth-form-area"><div className="clerk-auth-card">{!clerkPubKey ? <p>Регистрация временно недоступна: авторизация не настроена.</p> : <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} forceRedirectUrl={`${basePath}/`} fallback={<div role="status" style={{ padding: 24, color: "#244c43", textAlign: "center" }}>Загрузка формы регистрации…</div>} />}</div></div></div>;
 }
 
 function ClerkCacheInvalidator() {
@@ -1122,6 +1133,19 @@ function RouteErrorBoundary({ children }: { children: ReactNode }) {
 
 function ClerkRoutes() {
   const [, setLocation] = useLocation();
+  const routes = <QueryClientProvider client={queryClient}>
+    {clerkPubKey ? <ClerkCacheInvalidator /> : null}
+    <RouteErrorBoundary>
+      <Switch>
+        <Route path="/" component={HomeRoute} />
+        <Route path="/admin" component={AdminGate} />
+        <Route path="/sign-in/*?" component={BrandedSignIn} />
+        <Route path="/sign-up/*?" component={BrandedSignUp} />
+        <Route component={NotFound} />
+      </Switch>
+    </RouteErrorBoundary>
+  </QueryClientProvider>;
+  if (!clerkPubKey) return routes;
   return <ClerkProvider
     publishableKey={clerkPubKey}
     proxyUrl={clerkProxyUrl}
@@ -1144,18 +1168,7 @@ function ClerkRoutes() {
     routerPush={(to) => setLocation(stripBase(to))}
     routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
   >
-    <QueryClientProvider client={queryClient}>
-      <ClerkCacheInvalidator />
-      <RouteErrorBoundary>
-        <Switch>
-          <Route path="/" component={HomeRoute} />
-          <Route path="/admin" component={AdminGate} />
-          <Route path="/sign-in/*?" component={BrandedSignIn} />
-          <Route path="/sign-up/*?" component={BrandedSignUp} />
-          <Route component={NotFound} />
-        </Switch>
-      </RouteErrorBoundary>
-    </QueryClientProvider>
+    <ClerkBridge>{routes}</ClerkBridge>
   </ClerkProvider>;
 }
 
