@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: maghazin-tovarov-2vhe
+    name: nexio
     runtime: node
     plan: free
     buildCommand: >-
