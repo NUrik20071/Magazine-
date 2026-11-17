@@ -200,7 +200,7 @@ function ShopHeader({ count, onCart, announcement, content }: { count: number; o
 function ProductCard({ product, index, onAdd, onOpen }: { product: Product; index: number; onAdd: (product: Product) => void; onOpen: (product: Product) => void }) {
   const source = productImage(product, index);
   const isVideo = isVideoMedia(source);
-  return <article className="product-card" data-element-id="product-card" data-testid={`card-product-${product.id}`} onClick={() => onOpen(product)} tabIndex={0} role="button" onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(product); } }} aria-label={`Открыть товар ${product.name}`}>
+  return <article className="product-card" data-animation="reveal" data-element-id="product-card" data-testid={`card-product-${product.id}`} onClick={() => onOpen(product)} tabIndex={0} role="button" onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(product); } }} aria-label={`Открыть товар ${product.name}`}>
     <div className="product-photo">
       {isVideo ? <video src={source} aria-label={product.name} autoPlay muted loop playsInline preload="metadata" data-testid={`video-product-${product.id}`} /> : <img src={source} alt={product.name} loading="lazy" data-testid={`img-product-${product.id}`} />}
       {product.badge && <span className="badge">{product.badge}</span>}
@@ -416,6 +416,7 @@ function Catalog() {
   const [storefront, setStorefront] = useState<StorefrontConfig>(defaultStorefront);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
+  const [sort, setSort] = useState('featured');
   const [cartOpen, setCartOpen] = useState(false);
   const [workflowNotice, setWorkflowNotice] = useState('');
   const [storefrontLoaded, setStorefrontLoaded] = useState(false);
@@ -483,7 +484,7 @@ function Catalog() {
     }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
     elements.forEach(el => { el.classList.add('motion-pending'); el.classList.remove('motion-in'); observer.observe(el); });
     return () => observer.disconnect();
-  }, [storefront, storefrontLoaded]);
+  }, [storefront, storefrontLoaded, products.length]);
   useEffect(() => {
     if (!storefrontLoaded) return;
     const frame = window.requestAnimationFrame(() => runWorkflows('page-load'));
@@ -498,6 +499,12 @@ function Catalog() {
   useEffect(() => { document.title = storefront.content.siteName || 'Магазин'; }, [storefront.content.siteName]);
   const summaryQuery = useGetStoreSummary();
   const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
+  const visibleProducts = useMemo(() => [...products].sort((a, b) => {
+    if (sort === 'price-asc') return a.price - b.price;
+    if (sort === 'price-desc') return b.price - a.price;
+    if (sort === 'name') return a.name.localeCompare(b.name, 'ru');
+    return Number(b.isFeatured) - Number(a.isFeatured);
+  }), [products, sort]);
   useEffect(() => {
     const syncProductFromUrl = () => {
       const slug = new URL(window.location.href).searchParams.get('product');
@@ -576,7 +583,8 @@ function Catalog() {
             <label style={{ position: 'relative' }}><Search size={15} style={{ position: 'absolute', left: 11, top: 11, color: '#829086' }} />
               <input className="search-field" style={{ paddingLeft: 34 }} placeholder={storefront.content.searchPlaceholder} value={search} onChange={(event) => setSearch(event.target.value)} data-testid="input-product-search" />
             </label>
-            <span className="mono" style={{ fontSize: 10, color: '#788176' }}>{products.length.toString().padStart(2, '0')} предмета</span>
+            <select className="sort-field" aria-label="Сортировка товаров" value={sort} onChange={(event) => setSort(event.target.value)}><option value="featured">Сначала избранное</option><option value="price-asc">Сначала дешевле</option><option value="price-desc">Сначала дороже</option><option value="name">По названию</option></select>
+            <span className="mono catalog-count" style={{ fontSize: 10, color: '#788176' }}>{products.length.toString().padStart(2, '0')} товаров</span>
           </div>
         </div>
         <div className="filter-row">
@@ -585,8 +593,8 @@ function Catalog() {
         </div>
         {productsQuery.isLoading ? <div className="product-grid" aria-label="Загрузка товаров">{[1, 2, 3, 4].map((n) => <div className="skeleton" key={n} style={{ aspectRatio: '.83' }} />)}</div> :
           productsQuery.isError ? <div className="error-state"><h3 className="serif">Не удалось загрузить коллекцию</h3><p>Проверьте соединение и попробуйте ещё раз.</p><button className="primary-button" onClick={() => productsQuery.refetch()} data-testid="button-retry-products">Повторить</button></div> :
-            products.length ? <div className="product-grid">{products.map((product, index) => <ProductCard key={product.id} product={product} index={index} onAdd={addProduct} onOpen={openProduct} />)}</div> :
-              <div className="empty-state" data-testid="empty-products">Коллекция пока собирается.<br /><span style={{ fontSize: 13 }}>Загляните чуть позже — здесь появятся новые находки.</span></div>}
+            visibleProducts.length ? <div className="product-grid">{visibleProducts.map((product, index) => <ProductCard key={product.id} product={product} index={index} onAdd={addProduct} onOpen={openProduct} />)}</div> :
+              <div className="empty-state" data-testid="empty-products">{search.trim() || category ? <>Ничего не нашлось.<br /><span style={{ fontSize: 13 }}>Попробуйте изменить запрос или сбросить фильтры.</span><br /><button className="secondary-button" style={{ marginTop: 14 }} onClick={() => { setSearch(''); setCategory(''); }}>Сбросить фильтры</button></> : <>Коллекция пока собирается.<br /><span style={{ fontSize: 13 }}>Загляните чуть позже — здесь появятся новые находки.</span></>}</div>}
       </section>
       <div data-site-section="custom" data-element-id="custom-section" style={{ display: storefront.sections.custom && storefront.sectionOrder.includes('custom') ? undefined : 'none', order: Math.max(0, storefront.sectionOrder.indexOf('custom')) }}><StorefrontBlocks blocks={storefront.blocks} /></div>
       {storefront.customSections.map((section) => <section className="builder-custom-section" key={section.id} id={section.id} data-site-section={section.id} data-element-id={section.id} data-animation={section.animation} style={{ display: section.enabled && storefront.sectionOrder.includes(section.id) ? undefined : 'none', order: Math.max(0, storefront.sectionOrder.indexOf(section.id)), background: section.background || 'transparent', ['--block-animation-duration' as any]: '700ms' }}><div className="builder-custom-section-head"><h2>{section.title}</h2></div><StorefrontBlocks blocks={section.blocks || []} /></section>)}
