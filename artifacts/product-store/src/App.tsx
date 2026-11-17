@@ -19,7 +19,7 @@ import {
 import type { Product } from '@workspace/api-client-react';
 import {
   ArrowDownRight, ArrowRight, Leaf, LogOut, Minus, Package, Pencil,
-  Plus, Search, ShoppingBag, Trash2, UserRound, X, ClipboardList, Check, Ban, Settings, ExternalLink, ChevronUp, ChevronDown,
+  Plus, Search, ShoppingBag, Trash2, UserRound, X, ClipboardList, Check, Ban, Settings, ExternalLink, ChevronUp, ChevronDown, Heart,
 } from 'lucide-react';
 import { Link, Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -197,13 +197,14 @@ function ShopHeader({ count, onCart, announcement, content }: { count: number; o
   </div>;
 }
 
-function ProductCard({ product, index, onAdd, onOpen }: { product: Product; index: number; onAdd: (product: Product) => void; onOpen: (product: Product) => void }) {
+function ProductCard({ product, index, onAdd, onOpen, favorite, onToggleFavorite }: { product: Product; index: number; onAdd: (product: Product) => void; onOpen: (product: Product) => void; favorite: boolean; onToggleFavorite: (id: number) => void }) {
   const source = productImage(product, index);
   const isVideo = isVideoMedia(source);
   return <article className="product-card" data-animation="reveal" data-element-id="product-card" data-testid={`card-product-${product.id}`} onClick={() => onOpen(product)} tabIndex={0} role="button" onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(product); } }} aria-label={`Открыть товар ${product.name}`}>
     <div className="product-photo">
       {isVideo ? <video src={source} aria-label={product.name} autoPlay muted loop playsInline preload="metadata" data-testid={`video-product-${product.id}`} /> : <img src={source} alt={product.name} loading="lazy" data-testid={`img-product-${product.id}`} />}
       {product.badge && <span className="badge">{product.badge}</span>}
+      <button className={`favorite-toggle ${favorite ? 'is-favorite' : ''}`} onClick={(event) => { event.stopPropagation(); onToggleFavorite(product.id); }} aria-label={favorite ? `Убрать ${product.name} из избранного` : `Добавить ${product.name} в избранное`} aria-pressed={favorite}><Heart size={17} fill={favorite ? 'currentColor' : 'none'} /></button>
       <button className="quick-add" onClick={(event) => { event.stopPropagation(); onAdd(product); }} aria-label={`Добавить ${product.name}`} data-testid={`button-add-product-${product.id}`}>
         <Plus size={20} />
       </button>
@@ -417,6 +418,8 @@ function Catalog() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [sort, setSort] = useState('featured');
+  const [favoriteIds, setFavoriteIds] = useState<number[]>(() => { try { const saved: unknown = JSON.parse(localStorage.getItem('nexio-favorites') || '[]'); return Array.isArray(saved) ? saved.filter((id): id is number => Number.isSafeInteger(id) && id > 0) : []; } catch { return []; } });
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [workflowNotice, setWorkflowNotice] = useState('');
   const [storefrontLoaded, setStorefrontLoaded] = useState(false);
@@ -499,12 +502,12 @@ function Catalog() {
   useEffect(() => { document.title = storefront.content.siteName || 'Магазин'; }, [storefront.content.siteName]);
   const summaryQuery = useGetStoreSummary();
   const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
-  const visibleProducts = useMemo(() => [...products].sort((a, b) => {
+  const visibleProducts = useMemo(() => [...products.filter(product => !favoritesOnly || favoriteIds.includes(product.id))].sort((a, b) => {
     if (sort === 'price-asc') return a.price - b.price;
     if (sort === 'price-desc') return b.price - a.price;
     if (sort === 'name') return a.name.localeCompare(b.name, 'ru');
     return Number(b.isFeatured) - Number(a.isFeatured);
-  }), [products, sort]);
+  }), [products, sort, favoritesOnly, favoriteIds]);
   useEffect(() => {
     const syncProductFromUrl = () => {
       const slug = new URL(window.location.href).searchParams.get('product');
@@ -541,6 +544,8 @@ function Catalog() {
   const categories = summaryQuery.data?.categoryNames ?? Array.from(new Set(products.map((product) => product.category)));
   const featured = summaryQuery.data?.featuredProducts?.[0];
   const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const toggleFavorite = (id: number) => setFavoriteIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]);
+  useEffect(() => { try { localStorage.setItem('nexio-favorites', JSON.stringify(favoriteIds)); } catch { /* Storage may be unavailable or full. */ } }, [favoriteIds]);
   useEffect(() => {
     try { localStorage.setItem('tihoshop-cart', JSON.stringify(cart)); } catch { /* Storage may be unavailable or full. */ }
   }, [cart]);
@@ -590,11 +595,12 @@ function Catalog() {
         <div className="filter-row">
           <button className={`filter-chip ${category === '' ? 'active' : ''}`} onClick={() => setCategory('')} data-testid="button-filter-all">Всё</button>
           {categories.map((name) => <button key={name} className={`filter-chip ${category === name ? 'active' : ''}`} onClick={() => setCategory(category === name ? '' : name)} data-testid={`button-filter-${name}`}>{name}</button>)}
+          <button className={`filter-chip favorite-filter ${favoritesOnly ? 'active' : ''}`} onClick={() => setFavoritesOnly(value => !value)} aria-pressed={favoritesOnly}><Heart size={12} /> Избранное <span>{favoriteIds.length}</span></button>
         </div>
         {productsQuery.isLoading ? <div className="product-grid" aria-label="Загрузка товаров">{[1, 2, 3, 4].map((n) => <div className="skeleton" key={n} style={{ aspectRatio: '.83' }} />)}</div> :
           productsQuery.isError ? <div className="error-state"><h3 className="serif">Не удалось загрузить коллекцию</h3><p>Проверьте соединение и попробуйте ещё раз.</p><button className="primary-button" onClick={() => productsQuery.refetch()} data-testid="button-retry-products">Повторить</button></div> :
-            visibleProducts.length ? <div className="product-grid">{visibleProducts.map((product, index) => <ProductCard key={product.id} product={product} index={index} onAdd={addProduct} onOpen={openProduct} />)}</div> :
-              <div className="empty-state" data-testid="empty-products">{search.trim() || category ? <>Ничего не нашлось.<br /><span style={{ fontSize: 13 }}>Попробуйте изменить запрос или сбросить фильтры.</span><br /><button className="secondary-button" style={{ marginTop: 14 }} onClick={() => { setSearch(''); setCategory(''); }}>Сбросить фильтры</button></> : <>Коллекция пока собирается.<br /><span style={{ fontSize: 13 }}>Загляните чуть позже — здесь появятся новые находки.</span></>}</div>}
+            visibleProducts.length ? <div className="product-grid">{visibleProducts.map((product, index) => <ProductCard key={product.id} product={product} index={index} onAdd={addProduct} onOpen={openProduct} favorite={favoriteIds.includes(product.id)} onToggleFavorite={toggleFavorite} />)}</div> :
+              <div className="empty-state" data-testid="empty-products">{search.trim() || category || favoritesOnly ? <>{favoritesOnly && !favoriteIds.length ? 'В избранном пока пусто.' : 'Ничего не нашлось.'}<br /><span style={{ fontSize: 13 }}>Измените фильтры или вернитесь ко всему каталогу.</span><br /><button className="secondary-button" style={{ marginTop: 14 }} onClick={() => { setSearch(''); setCategory(''); setFavoritesOnly(false); }}>Сбросить фильтры</button></> : <>Коллекция пока собирается.<br /><span style={{ fontSize: 13 }}>Загляните чуть позже — здесь появятся новые находки.</span></>}</div>}
       </section>
       <div data-site-section="custom" data-element-id="custom-section" style={{ display: storefront.sections.custom && storefront.sectionOrder.includes('custom') ? undefined : 'none', order: Math.max(0, storefront.sectionOrder.indexOf('custom')) }}><StorefrontBlocks blocks={storefront.blocks} /></div>
       {storefront.customSections.map((section) => <section className="builder-custom-section" key={section.id} id={section.id} data-site-section={section.id} data-element-id={section.id} data-animation={section.animation} style={{ display: section.enabled && storefront.sectionOrder.includes(section.id) ? undefined : 'none', order: Math.max(0, storefront.sectionOrder.indexOf(section.id)), background: section.background || 'transparent', ['--block-animation-duration' as any]: '700ms' }}><div className="builder-custom-section-head"><h2>{section.title}</h2></div><StorefrontBlocks blocks={section.blocks || []} /></section>)}
