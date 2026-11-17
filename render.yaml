@@ -31,8 +31,6 @@ services:
         sync: false
       - key: VITE_CLERK_PUBLISHABLE_KEY
         sync: false
-      - key: VITE_CLERK_PROXY_URL
-        value: https://maghazin-tovarov-2vhe.onrender.com/api/__clerk
       - key: ADMIN_EMAILS
         sync: false
 
