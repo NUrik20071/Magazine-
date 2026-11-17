@@ -487,7 +487,7 @@ function Catalog() {
     }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
     elements.forEach(el => { el.classList.add('motion-pending'); el.classList.remove('motion-in'); observer.observe(el); });
     return () => observer.disconnect();
-  }, [storefront, storefrontLoaded, products.length]);
+  }, [storefront, storefrontLoaded, productsQuery.data?.length]);
   useEffect(() => {
     if (!storefrontLoaded) return;
     const frame = window.requestAnimationFrame(() => runWorkflows('page-load'));
