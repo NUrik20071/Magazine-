@@ -72,14 +72,16 @@ The following additive changes are now present on `refactor/platform-core-backen
 - Added a migration runner with a PostgreSQL advisory lock, an applied-migration ledger, SHA-256 checksums, transactional execution, and a hard failure if an already-applied migration file is edited.
 - Removed deployment-time `drizzle-kit push` / `push-force`. Render now runs tracked migrations instead of reconciling the live schema on every restart.
 - Added authenticated, owner-scoped CRUD for sites, pages, and page blocks, plus revision listing/creation, publishing, and restore-as-new-revision. Ownership is checked in database predicates or joins; foreign resources are returned as not found.
-- Publishing stores a complete immutable-by-application snapshot and records its revision number on the page. Restoring creates a new draft revision and preserves the previously published revision pointer.
+- Added public page retrieval that reads only the page's published revision snapshot; draft block edits do not leak into public output.
+- Publishing stores a complete immutable-by-application snapshot and records its revision number on the page. Restoring creates a new revision while preserving the previously published revision pointer.
+- Moved platform request validation into shared `@workspace/api-zod` schemas so backend routes and future clients can share the same validation rules.
 - Split liveness (`/api/healthz`) from database readiness (`/api/readyz`), and configured Render to use readiness.
 - Added a PostgreSQL-backed CI migration test that runs migrations twice, checks schema/FK behavior, and verifies a pre-existing `products` row survives.
 
 ### Current limitations — not yet accepted as complete
 
 - This is a first backend slice, not the finished platform core. Pagination, assets, roles/collaboration, audit events, and public rendering from the published revision remain outstanding.
-- The new endpoints currently validate with local Zod schemas; the shared generated OpenAPI/API-Zod contract has not yet been extended.
+- Shared Zod request schemas now exist in `@workspace/api-zod`, but the OpenAPI specification and generated React Query client have not yet been extended.
 - CI build/typecheck and a migration integration test against disposable PostgreSQL pass. API-level authorization tests and a rehearsal against a copy of the actual production database have not yet been run.
 - Existing request-time table creation in legacy commerce/media routes remains and must be migrated separately without losing data.
 - The deployment migration runs before API startup. Before production rollout, take a database backup and rehearse the migration against a copy of the current database.
