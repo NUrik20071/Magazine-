@@ -19,13 +19,8 @@ router.get("/public/sites/:siteId/pages/:pageSlug", async (req, res): Promise<vo
       name: sitesTable.name,
       slug: sitesTable.slug,
     },
-    page: {
-      id: pagesTable.id,
-      title: pagesTable.title,
-      slug: pagesTable.slug,
-      seo: pagesTable.seo,
-      publishedAt: pagesTable.publishedAt,
-    },
+    pageId: pagesTable.id,
+    publishedAt: pagesTable.publishedAt,
     revisionNumber: pageRevisionsTable.revisionNumber,
     content: pageRevisionsTable.snapshot,
   }).from(sitesTable)
@@ -36,7 +31,7 @@ router.get("/public/sites/:siteId/pages/:pageSlug", async (req, res): Promise<vo
     ))
     .where(and(
       eq(sitesTable.id, siteId.data),
-      eq(pagesTable.slug, pageSlug.data),
+      eq(pagesTable.publishedSlug, pageSlug.data),
       eq(pagesTable.status, "published"),
     ));
 
@@ -44,7 +39,23 @@ router.get("/public/sites/:siteId/pages/:pageSlug", async (req, res): Promise<vo
     res.status(404).json({ error: "Published page not found." });
     return;
   }
-  res.json({ data: published });
+
+  // Public metadata and content must come from the same immutable snapshot.
+  // Mutable page fields represent the current draft and must never leak before publish.
+  res.json({
+    data: {
+      site: published.site,
+      page: {
+        id: published.pageId,
+        title: published.content.page.title,
+        slug: published.content.page.slug,
+        seo: published.content.page.seo,
+        publishedAt: published.publishedAt,
+      },
+      revisionNumber: published.revisionNumber,
+      content: published.content,
+    },
+  });
 });
 
 export default router;
