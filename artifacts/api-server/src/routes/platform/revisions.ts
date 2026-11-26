@@ -2,7 +2,7 @@ import { db, pageBlocksTable, pageRevisionsTable, pagesTable, sitesTable, type P
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { pageRevisionNumberSchema as revisionNumberSchema, platformIdSchema as uuidSchema } from "@workspace/api-zod";
-import { authenticatedOwnerId } from "./shared";
+import { authenticatedOwnerId, getOwnedPage } from "./shared";
 
 const router: IRouter = Router();
 
