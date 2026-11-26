@@ -6,7 +6,7 @@ import storefrontSettingsRouter from "./storefrontSettings";
 import mediaRouter from "./media";
 import mediaResolveRouter from "./mediaResolve";
 import aiCodeRouter from "./aiCode";
-import sitesRouter from "./sites";
+import platformRouter from "./platform";
 
 const router: IRouter = Router();
 
@@ -17,6 +17,6 @@ router.use(storefrontSettingsRouter);
 router.use(mediaRouter);
 router.use(mediaResolveRouter);
 router.use(aiCodeRouter);
-router.use(sitesRouter);
+router.use(platformRouter);
 
 export default router;
