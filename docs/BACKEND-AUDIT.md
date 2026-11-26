@@ -75,6 +75,7 @@ The following additive changes are now present on `refactor/platform-core-backen
 - Added public page retrieval that reads only the page's published revision snapshot; draft block edits do not leak into public output.
 - Publishing stores a complete immutable-by-application snapshot and records its revision number on the page. Restoring creates a new revision while preserving the previously published revision pointer.
 - Moved platform request validation into shared `@workspace/api-zod` schemas so backend routes and future clients can share the same validation rules.
+- Split platform routes into independent modules: `public`, `sites`, `pages`, `blocks`, and `revisions`, with shared authorization/ownership helpers.
 - Split liveness (`/api/healthz`) from database readiness (`/api/readyz`), and configured Render to use readiness.
 - Added a PostgreSQL-backed CI migration test that runs migrations twice, checks schema/FK behavior, and verifies a pre-existing `products` row survives.
 
