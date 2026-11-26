@@ -128,7 +128,7 @@ router.patch("/sites/:siteId", async (req, res): Promise<void> => {
   const id = uuidSchema.safeParse(req.params.siteId);
   const parsed = updateSiteSchema.safeParse(req.body);
   if (!id.success || !parsed.success) {
-    res.status(400).json({ error: !id.success ? "Invalid site ID." : parsed.error.flatten() });
+    res.status(400).json({ error: !id.success ? "Invalid site ID." : parsed.error?.flatten() ?? "Invalid request body." });
     return;
   }
 
@@ -197,7 +197,7 @@ router.post("/sites/:siteId/pages", async (req, res): Promise<void> => {
   const id = uuidSchema.safeParse(req.params.siteId);
   const parsed = createPageSchema.safeParse(req.body);
   if (!id.success || !parsed.success) {
-    res.status(400).json({ error: !id.success ? "Invalid site ID." : parsed.error.flatten() });
+    res.status(400).json({ error: !id.success ? "Invalid site ID." : parsed.error?.flatten() ?? "Invalid request body." });
     return;
   }
 
@@ -270,7 +270,7 @@ router.post("/pages/:pageId/blocks", async (req, res): Promise<void> => {
   const id = uuidSchema.safeParse(req.params.pageId);
   const parsed = createBlockSchema.safeParse(req.body);
   if (!id.success || !parsed.success) {
-    res.status(400).json({ error: !id.success ? "Invalid page ID." : parsed.error.flatten() });
+    res.status(400).json({ error: !id.success ? "Invalid page ID." : parsed.error?.flatten() ?? "Invalid request body." });
     return;
   }
 
