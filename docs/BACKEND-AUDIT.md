@@ -61,3 +61,24 @@ Audit baseline: `main` at the time this report was prepared. This is a static so
 - No dropping or renaming existing product/order tables as part of the initial platform-core migration.
 - No arbitrary server-side JavaScript execution for user-created sites.
 - User-authored custom HTML/CSS/JS must be treated as a separate, high-risk capability and sandboxed or disabled by default.
+
+
+## Implementation update — platform-core foundation
+
+The following additive changes are now present on `refactor/platform-core-backend`:
+
+- Added Drizzle models for `sites`, `pages`, and `page_blocks`.
+- Added SQL migration `0001_platform_core.sql`. It creates only the new core tables and indexes; it does not rename, drop, or rewrite products, orders, storefront settings, or media.
+- Added a migration runner with a PostgreSQL advisory lock, an applied-migration ledger, SHA-256 checksums, transactional execution, and a hard failure if an already-applied migration file is edited.
+- Removed the deployment-time `drizzle-kit push` / `push-force` scripts from the DB package. Render now runs the tracked migration runner instead of reconciling the live schema on every restart.
+- Added authenticated, owner-scoped endpoints for site list/create/read/update, page list/create, and block list/create. Ownership is checked in database predicates or joins; a foreign site/page is returned as not found.
+- Split liveness (`/api/healthz`) from database readiness (`/api/readyz`), and configured Render to use readiness.
+
+### Current limitations — not yet accepted as complete
+
+- This is a first backend slice, not the finished platform core. Page/block update and delete, pagination, immutable revisions, publishing/restore, assets, roles/collaboration, and audit events remain outstanding.
+- The new endpoints currently validate with local Zod schemas; the shared generated OpenAPI/API-Zod contract has not yet been extended.
+- Automated unit/integration tests and a live migration rehearsal against a disposable PostgreSQL database have not yet been run.
+- Existing request-time table creation in legacy commerce/media routes remains and must be migrated separately without losing data.
+- The deployment migration runs before API startup. Before production rollout, take a database backup and rehearse the migration against a copy of the current database.
+
