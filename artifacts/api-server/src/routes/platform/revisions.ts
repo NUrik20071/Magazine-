@@ -155,6 +155,7 @@ router.post("/pages/:pageId/publish", async (req, res): Promise<void> => {
     const [page] = await tx.update(pagesTable).set({
       status: "published",
       publishedRevisionNumber: revisionNumber,
+      publishedSlug: result.page.slug,
       publishedAt: new Date(),
       updatedAt: new Date(),
     }).where(eq(pagesTable.id, result.page.id)).returning();
