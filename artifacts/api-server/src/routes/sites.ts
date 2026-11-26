@@ -520,7 +520,6 @@ router.post("/pages/:pageId/restore/:revisionNumber", async (req, res): Promise<
       slug: source.snapshot.page.slug,
       sortOrder: source.snapshot.page.sortOrder,
       seo: source.snapshot.page.seo,
-      status: "draft",
       updatedAt: new Date(),
     }).where(eq(pagesTable.id, result.page.id)).returning();
 
