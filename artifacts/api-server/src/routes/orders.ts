@@ -4,29 +4,6 @@ import { pool } from "@workspace/db";
 import { requireAdmin } from "../middlewares/adminAuth";
 
 const router: IRouter = Router();
-let tableReady: Promise<unknown> | undefined;
-
-function ensureOrdersTable() {
-  tableReady ??= pool.query(`
-    CREATE TABLE IF NOT EXISTS store_orders (
-      id BIGSERIAL PRIMARY KEY,
-      customer_name TEXT NOT NULL,
-      customer_phone TEXT NOT NULL,
-      customer_email TEXT NOT NULL DEFAULT '',
-      delivery_address TEXT NOT NULL,
-      customer_note TEXT NOT NULL DEFAULT '',
-      items JSONB NOT NULL,
-      total_amount INTEGER NOT NULL CHECK (total_amount >= 0),
-      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
-      moderation_note TEXT NOT NULL DEFAULT '',
-      user_id TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-  return tableReady;
-}
-
 router.post("/orders", async (req, res): Promise<void> => {
   const { customerName, phone, email, address, note, items } = req.body ?? {};
   if (typeof customerName !== "string" || customerName.trim().length < 2 ||
@@ -51,7 +28,6 @@ router.post("/orders", async (req, res): Promise<void> => {
   }
 
   try {
-    await ensureOrdersTable();
     const ids = [...quantities.keys()];
     const found = await pool.query(
       "SELECT id, name, price, image_url FROM products WHERE id = ANY($1::int[]) AND is_active = TRUE",
@@ -100,7 +76,6 @@ router.post("/orders", async (req, res): Promise<void> => {
 
 router.get("/admin/orders", requireAdmin, async (req, res): Promise<void> => {
   try {
-    await ensureOrdersTable();
     const status = typeof req.query.status === "string" ? req.query.status : "";
     if (status && !["pending", "approved", "rejected"].includes(status)) {
       res.status(400).json({ error: "Некорректный статус заказа." });
@@ -130,7 +105,6 @@ router.patch("/admin/orders/:id", requireAdmin, async (req, res): Promise<void> 
     return;
   }
   try {
-    await ensureOrdersTable();
     const current = await pool.query("SELECT items FROM store_orders WHERE id = $1", [id]);
     if (!current.rows[0]) { res.status(404).json({ error: "Заказ не найден." }); return; }
     const originalItems = Array.isArray(current.rows[0].items) ? current.rows[0].items : [];
@@ -176,7 +150,6 @@ router.patch("/admin/orders/:id/moderation", requireAdmin, async (req, res): Pro
     return;
   }
   try {
-    await ensureOrdersTable();
     const result = await pool.query(
       `UPDATE store_orders SET status = $1, moderation_note = $2, updated_at = NOW()
        WHERE id = $3 AND status = 'pending' RETURNING id, status, moderation_note, updated_at`,
