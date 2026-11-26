@@ -25,12 +25,16 @@ export const pagesTable = pgTable(
     sortOrder: integer("sort_order").notNull().default(0),
     seo: jsonb("seo").$type<Record<string, unknown>>().notNull().default({}),
     publishedRevisionNumber: integer("published_revision_number"),
+    publishedSlug: text("published_slug"),
     publishedAt: timestamp("published_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     siteSlugUnique: uniqueIndex("pages_site_slug_unique").on(table.siteId, table.slug),
+    sitePublishedSlugUnique: uniqueIndex("pages_site_published_slug_unique")
+      .on(table.siteId, table.publishedSlug)
+      .where(sql`${table.publishedSlug} IS NOT NULL`),
     siteOrderIndex: index("pages_site_order_idx").on(table.siteId, table.sortOrder),
     statusCheck: check("pages_status_check", sql`${table.status} IN ('draft', 'published')`),
     publishedRevisionCheck: check(
