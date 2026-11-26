@@ -2,7 +2,7 @@ import { db, pageBlocksTable, pageRevisionsTable, pagesTable, sitesTable, type P
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { pageRevisionNumberSchema as revisionNumberSchema, platformIdSchema as uuidSchema } from "@workspace/api-zod";
-import { authenticatedOwnerId, getOwnedPage } from "./shared";
+import { authenticatedOwnerId, getOwnedPage, isUniqueConstraintError } from "./shared";
 
 const router: IRouter = Router();
 
@@ -115,7 +115,9 @@ router.post("/pages/:pageId/publish", async (req, res): Promise<void> => {
     return;
   }
 
-  const published = await db.transaction(async (tx) => {
+  let published;
+  try {
+    published = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT id FROM pages WHERE id = ${id.data} FOR UPDATE`);
     const [result] = await tx.select({ page: pagesTable })
       .from(pagesTable)
@@ -160,7 +162,14 @@ router.post("/pages/:pageId/publish", async (req, res): Promise<void> => {
       updatedAt: new Date(),
     }).where(eq(pagesTable.id, result.page.id)).returning();
     return { page, revision };
-  });
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      res.status(409).json({ error: "Another published page already uses this URL." });
+      return;
+    }
+    throw error;
+  }
 
   if (!published) {
     res.status(404).json({ error: "Page not found." });
