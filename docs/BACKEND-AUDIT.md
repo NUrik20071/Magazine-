@@ -67,18 +67,20 @@ Audit baseline: `main` at the time this report was prepared. This is a static so
 
 The following additive changes are now present on `refactor/platform-core-backend`:
 
-- Added Drizzle models for `sites`, `pages`, and `page_blocks`.
-- Added SQL migration `0001_platform_core.sql`. It creates only the new core tables and indexes; it does not rename, drop, or rewrite products, orders, storefront settings, or media.
+- Added modular Drizzle models for `sites`, `pages`, `page_blocks`, and `page_revisions`.
+- Added additive migrations `0001_platform_core.sql` and `0002_page_revisions.sql`. They do not rename, drop, or rewrite products, orders, storefront settings, or media.
 - Added a migration runner with a PostgreSQL advisory lock, an applied-migration ledger, SHA-256 checksums, transactional execution, and a hard failure if an already-applied migration file is edited.
-- Removed the deployment-time `drizzle-kit push` / `push-force` scripts from the DB package. Render now runs the tracked migration runner instead of reconciling the live schema on every restart.
-- Added authenticated, owner-scoped endpoints for site list/create/read/update, page list/create, and block list/create. Ownership is checked in database predicates or joins; a foreign site/page is returned as not found.
+- Removed deployment-time `drizzle-kit push` / `push-force`. Render now runs tracked migrations instead of reconciling the live schema on every restart.
+- Added authenticated, owner-scoped CRUD for sites, pages, and page blocks, plus revision listing/creation, publishing, and restore-as-new-revision. Ownership is checked in database predicates or joins; foreign resources are returned as not found.
+- Publishing stores a complete immutable-by-application snapshot and records its revision number on the page. Restoring creates a new draft revision and preserves the previously published revision pointer.
 - Split liveness (`/api/healthz`) from database readiness (`/api/readyz`), and configured Render to use readiness.
+- Added a PostgreSQL-backed CI migration test that runs migrations twice, checks schema/FK behavior, and verifies a pre-existing `products` row survives.
 
 ### Current limitations — not yet accepted as complete
 
-- This is a first backend slice, not the finished platform core. Page/block update and delete, pagination, immutable revisions, publishing/restore, assets, roles/collaboration, and audit events remain outstanding.
+- This is a first backend slice, not the finished platform core. Pagination, assets, roles/collaboration, audit events, and public rendering from the published revision remain outstanding.
 - The new endpoints currently validate with local Zod schemas; the shared generated OpenAPI/API-Zod contract has not yet been extended.
-- Automated unit/integration tests and a live migration rehearsal against a disposable PostgreSQL database have not yet been run.
+- CI build/typecheck and a migration integration test against disposable PostgreSQL pass. API-level authorization tests and a rehearsal against a copy of the actual production database have not yet been run.
 - Existing request-time table creation in legacy commerce/media routes remains and must be migrated separately without losing data.
 - The deployment migration runs before API startup. Before production rollout, take a database backup and rehearse the migration against a copy of the current database.
 
