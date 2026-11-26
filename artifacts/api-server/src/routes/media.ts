@@ -11,19 +11,6 @@ const allowedMimeTypes = new Set([
   "audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav", "audio/webm",
 ]);
 
-async function ensureMediaTable() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS site_media (
-      id BIGSERIAL PRIMARY KEY,
-      filename TEXT NOT NULL,
-      mime_type TEXT NOT NULL,
-      data BYTEA NOT NULL,
-      byte_size INTEGER NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-}
-
 // Media is stored server-side. Only the requested asset is streamed to visitors;
 // database exports and backups are never exposed by this route.
 router.post("/admin/media", requireAdmin, express.raw({ type: "*/*", limit: MAX_MEDIA_BYTES }), async (req, res): Promise<void> => {
@@ -42,7 +29,6 @@ router.post("/admin/media", requireAdmin, express.raw({ type: "*/*", limit: MAX_
   }
   const suppliedName = String(req.query.filename || "media").slice(0, 180);
   const filename = suppliedName.replace(/[\\/\r\n\0]/g, "_").replace(/[^\p{L}\p{N}._ -]/gu, "_") || "media";
-  await ensureMediaTable();
   const { rows } = await pool.query(
     "INSERT INTO site_media (filename, mime_type, data, byte_size) VALUES ($1, $2, $3, $4) RETURNING id, filename, mime_type, byte_size",
     [filename, mime, req.body, req.body.length],
@@ -56,7 +42,6 @@ router.get("/media/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Некорректный идентификатор файла." });
     return;
   }
-  await ensureMediaTable();
   const { rows } = await pool.query("SELECT filename, mime_type, data, byte_size FROM site_media WHERE id = $1", [id]);
   if (!rows[0]) {
     res.status(404).json({ error: "Файл не найден." });
