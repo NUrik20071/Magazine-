@@ -8,7 +8,8 @@
     "./schema": "./src/schema/index.ts"
   },
   "scripts": {
-    "migrate": "node ./migrate.mjs"
+    "migrate": "node ./migrate.mjs",
+    "test:migrations": "node --test ./test/migrations.test.mjs"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",
