@@ -68,7 +68,7 @@ router.post("/sites", async (req, res): Promise<void> => {
   }
   const parsed = createSiteSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.flatten() });
+    res.status(400).json({ error: parsed.error?.flatten() ?? "Invalid request body." });
     return;
   }
 
