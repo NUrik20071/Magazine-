@@ -29,6 +29,14 @@ const createBlockSchema = z.object({
   position: z.number().int().min(0).max(100_000).default(0),
   config: z.record(z.string(), z.unknown()).default({}),
 });
+const updatePageSchema = createPageSchema.partial().extend({
+  sortOrder: z.number().int().min(0).max(100_000).optional(),
+  seo: z.record(z.string(), z.unknown()).optional(),
+}).refine((value) => Object.keys(value).length > 0, "At least one field is required.");
+const updateBlockSchema = createBlockSchema.partial().refine(
+  (value) => Object.keys(value).length > 0,
+  "At least one field is required.",
+);
 
 function authenticatedOwnerId(req: Request): string | null {
   if (!process.env.CLERK_SECRET_KEY?.trim()) return null;
@@ -556,6 +564,135 @@ router.post("/pages/:pageId/restore/:revisionNumber", async (req, res): Promise<
     return;
   }
   res.json({ data: restored });
+});
+
+
+router.patch("/pages/:pageId", async (req, res): Promise<void> => {
+  if (!process.env.CLERK_SECRET_KEY?.trim()) {
+    res.status(503).json({ error: "Authentication is not configured." });
+    return;
+  }
+  const ownerId = authenticatedOwnerId(req);
+  if (!ownerId) {
+    res.status(401).json({ error: "Authentication required." });
+    return;
+  }
+  const id = uuidSchema.safeParse(req.params.pageId);
+  const parsed = updatePageSchema.safeParse(req.body);
+  if (!id.success || !parsed.success) {
+    res.status(400).json({ error: !id.success ? "Invalid page ID." : parsed.error?.flatten() ?? "Invalid request body." });
+    return;
+  }
+  const ownedPage = await getOwnedPage(id.data, ownerId);
+  if (!ownedPage) {
+    res.status(404).json({ error: "Page not found." });
+    return;
+  }
+  try {
+    const [page] = await db.update(pagesTable).set({
+      ...parsed.data,
+      updatedAt: new Date(),
+    }).where(eq(pagesTable.id, ownedPage.id)).returning();
+    res.json({ data: page });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      res.status(409).json({ error: "A page with this slug already exists in this site." });
+      return;
+    }
+    throw error;
+  }
+});
+
+router.delete("/pages/:pageId", async (req, res): Promise<void> => {
+  if (!process.env.CLERK_SECRET_KEY?.trim()) {
+    res.status(503).json({ error: "Authentication is not configured." });
+    return;
+  }
+  const ownerId = authenticatedOwnerId(req);
+  if (!ownerId) {
+    res.status(401).json({ error: "Authentication required." });
+    return;
+  }
+  const id = uuidSchema.safeParse(req.params.pageId);
+  if (!id.success) {
+    res.status(400).json({ error: "Invalid page ID." });
+    return;
+  }
+  const ownedPage = await getOwnedPage(id.data, ownerId);
+  if (!ownedPage) {
+    res.status(404).json({ error: "Page not found." });
+    return;
+  }
+  await db.delete(pagesTable).where(eq(pagesTable.id, ownedPage.id));
+  res.sendStatus(204);
+});
+
+router.patch("/pages/:pageId/blocks/:blockId", async (req, res): Promise<void> => {
+  if (!process.env.CLERK_SECRET_KEY?.trim()) {
+    res.status(503).json({ error: "Authentication is not configured." });
+    return;
+  }
+  const ownerId = authenticatedOwnerId(req);
+  if (!ownerId) {
+    res.status(401).json({ error: "Authentication required." });
+    return;
+  }
+  const pageId = uuidSchema.safeParse(req.params.pageId);
+  const blockId = uuidSchema.safeParse(req.params.blockId);
+  const parsed = updateBlockSchema.safeParse(req.body);
+  if (!pageId.success || !blockId.success || !parsed.success) {
+    res.status(400).json({ error: "Invalid page ID, block ID, or block payload." });
+    return;
+  }
+  const ownedPage = await getOwnedPage(pageId.data, ownerId);
+  if (!ownedPage) {
+    res.status(404).json({ error: "Page not found." });
+    return;
+  }
+  const [block] = await db.update(pageBlocksTable).set({
+    ...parsed.data,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(pageBlocksTable.id, blockId.data),
+    eq(pageBlocksTable.pageId, ownedPage.id),
+  )).returning();
+  if (!block) {
+    res.status(404).json({ error: "Block not found." });
+    return;
+  }
+  res.json({ data: block });
+});
+
+router.delete("/pages/:pageId/blocks/:blockId", async (req, res): Promise<void> => {
+  if (!process.env.CLERK_SECRET_KEY?.trim()) {
+    res.status(503).json({ error: "Authentication is not configured." });
+    return;
+  }
+  const ownerId = authenticatedOwnerId(req);
+  if (!ownerId) {
+    res.status(401).json({ error: "Authentication required." });
+    return;
+  }
+  const pageId = uuidSchema.safeParse(req.params.pageId);
+  const blockId = uuidSchema.safeParse(req.params.blockId);
+  if (!pageId.success || !blockId.success) {
+    res.status(400).json({ error: "Invalid page ID or block ID." });
+    return;
+  }
+  const ownedPage = await getOwnedPage(pageId.data, ownerId);
+  if (!ownedPage) {
+    res.status(404).json({ error: "Page not found." });
+    return;
+  }
+  const [deleted] = await db.delete(pageBlocksTable).where(and(
+    eq(pageBlocksTable.id, blockId.data),
+    eq(pageBlocksTable.pageId, ownedPage.id),
+  )).returning({ id: pageBlocksTable.id });
+  if (!deleted) {
+    res.status(404).json({ error: "Block not found." });
+    return;
+  }
+  res.sendStatus(204);
 });
 
 export default router;
