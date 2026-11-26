@@ -15,7 +15,7 @@ router.get("/readyz", async (_req, res): Promise<void> => {
   try {
     await pool.query("SELECT 1");
     res.json({ status: "ready", dependencies: { database: "ok" } });
-  } catch (error) {
+  } catch {
     res.status(503).json({ status: "not_ready", dependencies: { database: "unavailable" } });
   }
 });
