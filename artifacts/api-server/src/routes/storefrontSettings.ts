@@ -24,14 +24,7 @@ const defaults = {
   workflows: [] as Array<Record<string, unknown>>,
 };
 
-async function ensureSettingsTable() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS storefront_settings (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      config JSONB NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
+async function ensureSettingsRow() {
   await pool.query(
     "INSERT INTO storefront_settings (id, config) VALUES (1, $1::jsonb) ON CONFLICT (id) DO NOTHING",
     [JSON.stringify(defaults)],
@@ -135,7 +128,7 @@ function validConfig(value: unknown): value is Record<string, any> {
 }
 
 router.get("/storefront/settings", async (_req, res): Promise<void> => {
-  await ensureSettingsTable();
+  await ensureSettingsRow();
   const { rows } = await pool.query("SELECT config FROM storefront_settings WHERE id = 1");
   const config = rows[0]?.config ?? defaults;
   const { adminTheme: _privateAdminTheme, customCode: _privateCustomCode, ...publishedConfig } = config;
@@ -144,7 +137,7 @@ router.get("/storefront/settings", async (_req, res): Promise<void> => {
 });
 
 router.get("/admin/storefront/settings", requireAdmin, async (_req, res): Promise<void> => {
-  await ensureSettingsTable();
+  await ensureSettingsRow();
   const { rows } = await pool.query("SELECT config, updated_at FROM storefront_settings WHERE id = 1");
   res.json({ config: rows[0]?.config ?? defaults, updatedAt: rows[0]?.updated_at ?? null });
 });
@@ -155,7 +148,7 @@ router.put("/admin/storefront/settings", requireAdmin, async (req, res): Promise
     res.status(400).json({ error: "Некорректные настройки оформления или блоков." });
     return;
   }
-  await ensureSettingsTable();
+  await ensureSettingsRow();
   const { rows } = await pool.query(
     "UPDATE storefront_settings SET config = $1::jsonb, updated_at = NOW() WHERE id = 1 RETURNING config, updated_at",
     [JSON.stringify(config)],
