@@ -1,42 +1,20 @@
 import { getAuth } from "@clerk/express";
+import {
+  createPageBodySchema as createPageSchema,
+  createPageBlockBodySchema as createBlockSchema,
+  createSiteBodySchema as createSiteSchema,
+  pageRevisionNumberSchema as revisionNumberSchema,
+  platformIdSchema as uuidSchema,
+  platformSlugSchema as slugSchema,
+  updatePageBodySchema as updatePageSchema,
+  updatePageBlockBodySchema as updateBlockSchema,
+  updateSiteBodySchema as updateSiteSchema,
+} from "@workspace/api-zod";
 import { db, pageBlocksTable, pageRevisionsTable, pagesTable, sitesTable, type PageRevisionSnapshot } from "@workspace/db";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { Router, type IRouter, type Request } from "express";
-import { z } from "zod/v4";
 
 const router: IRouter = Router();
-
-const uuidSchema = z.string().uuid();
-const slugSchema = z.string().trim().min(1).max(80).regex(
-  /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-  "Slug must contain lowercase letters, numbers, and single hyphens.",
-);
-const createSiteSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  slug: slugSchema,
-});
-const updateSiteSchema = createSiteSchema.partial().refine(
-  (value) => Object.keys(value).length > 0,
-  "At least one field must be provided.",
-);
-const createPageSchema = z.object({
-  title: z.string().trim().min(1).max(160),
-  slug: slugSchema,
-});
-const createBlockSchema = z.object({
-  type: z.string().trim().min(1).max(80).regex(/^[a-z][a-z0-9._-]*$/),
-  schemaVersion: z.number().int().positive().max(100).default(1),
-  position: z.number().int().min(0).max(100_000).default(0),
-  config: z.record(z.string(), z.unknown()).default({}),
-});
-const updatePageSchema = createPageSchema.partial().extend({
-  sortOrder: z.number().int().min(0).max(100_000).optional(),
-  seo: z.record(z.string(), z.unknown()).optional(),
-}).refine((value) => Object.keys(value).length > 0, "At least one field is required.");
-const updateBlockSchema = createBlockSchema.partial().refine(
-  (value) => Object.keys(value).length > 0,
-  "At least one field is required.",
-);
 
 function authenticatedOwnerId(req: Request): string | null {
   if (!process.env.CLERK_SECRET_KEY?.trim()) return null;
@@ -344,8 +322,6 @@ router.post("/pages/:pageId/blocks", async (req, res): Promise<void> => {
   res.status(201).json({ data: block });
 });
 
-
-const revisionNumberSchema = z.coerce.number().int().positive().max(2_000_000_000);
 
 async function getOwnedPage(pageId: string, ownerId: string) {
   const [result] = await db.select({ page: pagesTable })
